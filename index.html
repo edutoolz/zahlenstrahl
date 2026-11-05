@@ -168,7 +168,8 @@ button:disabled {
   margin-left: auto;
   pointer-events: auto;
 }
-#punkt[aria-pressed="true"] {
+#punkt[aria-pressed="true"],
+#laser[aria-pressed="true"] {
   background: var(--punkt);
   color: #ffffff;
 }
@@ -201,6 +202,7 @@ button:disabled {
 <div class="unten">
   <p id="hinweis"></p>
   <div class="punktknoepfe">
+    <button id="laser" class="einzeln" type="button" aria-pressed="false">Laserpointer</button>
     <button id="punkt" class="einzeln" type="button" aria-pressed="false">Punkt setzen</button>
     <button id="loeschen" class="einzeln" type="button" disabled>Punkte löschen</button>
   </div>
@@ -221,6 +223,7 @@ const btnSchwarz = document.getElementById("bg-schwarz");
 const btnMinus = document.getElementById("minus");
 const btnWeniger = document.getElementById("weniger");
 const btnMehr = document.getElementById("mehr");
+const btnLaser = document.getElementById("laser");
 const btnPunkt = document.getElementById("punkt");
 const btnLoeschen = document.getElementById("loeschen");
 const btnStart = document.getElementById("start");
@@ -239,6 +242,7 @@ let aktE = 0, aktM = 1;     // aktueller Abstand der sichtbaren Striche: aktM * 
 let punkte = [];            // gesetzte Punkte: Wert n * 10^e, exakt wie die Bildmitte
 let punktZaehler = 0;
 let punktModus = false;
+let laser = null;           // Laserpunkt: Bildschirmposition {x, y}. null = aus
 
 /* ---------- Rechnen ---------- */
 const potenzen = new Map();
@@ -566,18 +570,21 @@ function malen() {
   ctx.textBaseline = "middle";
   ctx.font = schrift(fs, true);
   const sichtbar = [];
+  const wertX = w => {
+    let N, rest = 0;
+    if (w.e >= d) {
+      N = w.n * pow10(w.e - d);
+    } else {
+      const t = pow10(d - w.e);
+      N = floorDiv(w.n, t);
+      rest = Number((w.n - N * t) * 1000000n / t) / 1e6;
+    }
+    return W / 2 + (Number(N - c0) + rest - fr) * s;
+  };
   for (const p of punkte) {
     p.x = null;
     if (!minusAn && p.n < 0n) continue;
-    let N, rest = 0;
-    if (p.e >= d) {
-      N = p.n * pow10(p.e - d);
-    } else {
-      const t = pow10(d - p.e);
-      N = floorDiv(p.n, t);
-      rest = Number((p.n - N * t) * 1000000n / t) / 1e6;
-    }
-    const x = W / 2 + (Number(N - c0) + rest - fr) * s;
+    const x = wertX(p);
     if (!Number.isFinite(x) || x < -40 || x > W + 40) continue;
     p.x = x;
     sichtbar.push(p);
@@ -614,6 +621,13 @@ function malen() {
     ctx.fillStyle = "#ffffff";
     ctx.fillText(text, px, py + ph / 2 + 1);
     p.feld = { x: px - pw / 2, y: py, w: pw, h: ph };
+  }
+  // Laserpunkt: schlichter roter Punkt genau unter dem Finger
+  if (laser) {
+    ctx.fillStyle = "#ff1414";
+    ctx.beginPath();
+    ctx.arc(laser.x, laser.y, 12, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.fillStyle = fg;
   ctx.strokeStyle = fg;
@@ -656,6 +670,7 @@ function groesse() {
   if (!vorher) startansicht();
   else {
     L += Math.log10(W / vorher);       // Beim Drehen des iPads bleibt derselbe Zahlenbereich im Bild
+    if (laser) laser = { x: Math.min(laser.x, W), y: Math.min(laser.y, H) };
     begrenzen();
     zeichnen();
   }
@@ -669,7 +684,9 @@ function bewegt() {
   hinweisZeigen();
 }
 function hinweisZeigen() {
-  if (punktModus) {
+  if (laser) {
+    elHinweis.textContent = "Bewege einen Finger über den Bildschirm. Der Laserpunkt folgt ihm.";
+  } else if (punktModus) {
     elHinweis.textContent = "Tippe auf den Strahl, um einen Punkt zu setzen. Tippe auf einen Punkt, um seine Zahl zu zeigen.";
   } else if (geste) {
     elHinweis.textContent = "";
@@ -695,6 +712,10 @@ function rasterWert(x) {
   if (!minusAn && n < 0n) n = 0n;
   return { n, e };
 }
+function laserSetzen(x, y) {
+  laser = { x, y };
+  zeichnen();
+}
 function punktBei(x, y) {
   for (let i = punkte.length - 1; i >= 0; i--) {
     const p = punkte[i];
@@ -714,10 +735,15 @@ function neuerPunkt(x) {
 }
 let tipp = null;
 function tippStart(x, y) {
-  tipp = { x, y, punkt: punktBei(x, y), gezogen: false };
+  tipp = { x, y, punkt: laser ? null : punktBei(x, y), gezogen: false };
 }
 function tippZug(x, y) {
   if (!tipp) return;
+  if (laser) {
+    tipp.gezogen = true;
+    laserSetzen(x, y);
+    return;
+  }
   if (Math.hypot(x - tipp.x, y - tipp.y) > 10) tipp.gezogen = true;
   if (tipp.gezogen && tipp.punkt) {
     Object.assign(tipp.punkt, rasterWert(x));
@@ -728,7 +754,9 @@ function tippEnde() {
   const t = tipp;
   tipp = null;
   if (!t || t.gezogen) return;
-  if (t.punkt) {
+  if (laser) {
+    laserSetzen(t.x, t.y);
+  } else if (t.punkt) {
     t.punkt.offen = !t.punkt.offen;
     zeichnen();
   } else if (punktModus) {
@@ -784,7 +812,7 @@ let mausX = null;
 canvas.addEventListener("pointerdown", e => {
   if (e.pointerType !== "mouse") return;
   tippStart(e.clientX, e.clientY);
-  if (!tipp.punkt) mausX = e.clientX;
+  if (!tipp.punkt && !laser) mausX = e.clientX;
   canvas.setPointerCapture(e.pointerId);
   canvas.classList.add("zieht");
 });
@@ -852,9 +880,23 @@ btnSchwarz.addEventListener("click", () => hintergrund("schwarz"));
 btnMinus.addEventListener("click", () => minuszahlen(!minusAn));
 btnStart.addEventListener("click", startansicht);
 
+function punktModusSetzen(an) {
+  punktModus = an;
+  btnPunkt.setAttribute("aria-pressed", String(an));
+}
+function laserSchalten(an) {
+  laser = an ? { x: W / 2, y: linieY } : null;
+  btnLaser.setAttribute("aria-pressed", String(an));
+  zeichnen();
+}
+btnLaser.addEventListener("click", () => {
+  laserSchalten(!laser);
+  if (laser) punktModusSetzen(false);
+  hinweisZeigen();
+});
 btnPunkt.addEventListener("click", () => {
-  punktModus = !punktModus;
-  btnPunkt.setAttribute("aria-pressed", String(punktModus));
+  punktModusSetzen(!punktModus);
+  if (punktModus) laserSchalten(false);
   hinweisZeigen();
 });
 btnLoeschen.addEventListener("click", () => {

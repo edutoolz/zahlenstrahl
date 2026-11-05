@@ -13,6 +13,7 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 - Schalter: Hintergrund Weiß/Schwarz, Minuszahlen (Standard aus, ein Strahl beginnt bei 0), Zurück zu 0 bis 10. Gemerkt wird in localStorage.
 - Knöpfe Weniger/Mehr Striche: `dichte` von -2 bis 2, relativ zur automatischen Stufe (Reihe 1, 5, 10, 50 ...), gilt also bei jedem Zoom. Bei 0 bis 10: -2 = 0 und 10, -1 = 0, 5, 10, 0 = alle Einer, +1 = Halbe, +2 = zusätzlich Zehntel-Striche. Wird nicht gespeichert und bleibt bei „Zurück zu 0 bis 10“ erhalten.
 - Punkte zum Raten: Knopf „Punkt setzen“, dann Tippen mit einem Finger setzt einen roten Punkt mit Buchstabe (A, B, C ...). Antippen zeigt oder verbirgt die Zahl, Ziehen verschiebt, „Punkte löschen“ entfernt alle. Punkte rasten ein (`rasterWert`), sind exakt gespeichert und bleiben beim Zoomen an ihrer Zahl. Sie werden nicht gespeichert.
+- Laserpointer: Knopf an, dann folgt ein schlichter roter Punkt (ohne Schein) frei einem Finger über den ganzen Bildschirm, zum Beispiel für Bögen. Er zieht keine Spur, bleibt nach dem Loslassen stehen und hat eine feste Bildschirmposition, bewegt sich also beim Zoomen nicht mit den Zahlen. Schließt sich mit „Punkt setzen“ gegenseitig aus. Solange er an ist, reagieren Punkte nicht auf Tippen.
 
 ## Hosting und Veröffentlichen
 
