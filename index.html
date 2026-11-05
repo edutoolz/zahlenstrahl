@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Zahlenstrahl</title>
+<style>
+/* Layout: die ganze Fläche gehört dem Strahl, oben eine schmale Zeile mit Schrittweite und Schaltern.
+   Bewusst nur Schwarz und Weiß. Einzige Farbe ist das Rot der gesetzten Punkte, damit sie sofort auffallen. */
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #55585c;
+  --line: #c9cbce;
+  --chip: #f0f1f2;
+  --punkt: #d91f1a;
+  --font: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+body[data-bg="schwarz"] {
+  --bg: #000000;
+  --fg: #ffffff;
+  --muted: #a9acb0;
+  --line: #44474b;
+  --chip: #1c1d1f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#strahl {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+#strahl.zieht { cursor: grabbing; }
+
+.oben {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px 20px;
+  pointer-events: none;
+}
+.schritt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.schritt small {
+  font-size: 15px;
+  color: var(--muted);
+}
+.schritt strong {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.schalter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+.gruppe {
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 12px;
+  background: var(--chip);
+}
+button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fg);
+  font: 700 17px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:focus-visible {
+  outline: 3px solid var(--fg);
+  outline-offset: 2px;
+}
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.gruppe button[aria-pressed="true"] {
+  background: var(--fg);
+  color: var(--bg);
+}
+.einzeln {
+  background: var(--chip);
+  border-radius: 12px;
+  min-height: 50px;
+}
+.einzeln[aria-pressed="true"] {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+#mitte {
+  position: fixed;
+  left: 20px;
+  right: 20px;
+  top: calc(52% - 190px);
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+#mitte span { color: var(--muted); }
+.unten {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 16px 20px 20px;
+  pointer-events: none;
+}
+#hinweis {
+  flex: 1 1 320px;
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+.punktknoepfe {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+  pointer-events: auto;
+}
+#punkt[aria-pressed="true"] {
+  background: var(--punkt);
+  color: #ffffff;
+}
+[hidden] { display: none !important; }
+</style>
+</head>
+<body data-bg="weiss">
+<canvas id="strahl" role="img" aria-label="Zahlenstrahl zum Verschieben und Zoomen"></canvas>
+
+<div class="oben">
+  <div class="schritt">
+    <small>Von Strich zu Strich</small>
+    <strong id="schritt">1</strong>
+  </div>
+  <div class="schalter">
+    <div class="gruppe" role="group" aria-label="Hintergrund">
+      <button id="bg-weiss" type="button" aria-pressed="true">Weiß</button>
+      <button id="bg-schwarz" type="button" aria-pressed="false">Schwarz</button>
+    </div>
+    <div class="gruppe" role="group" aria-label="Anzahl der Striche und Zahlen">
+      <button id="weniger" type="button">Weniger Striche</button>
+      <button id="mehr" type="button">Mehr Striche</button>
+    </div>
+    <button id="minus" class="einzeln" type="button" aria-pressed="false">Minuszahlen</button>
+    <button id="start" class="einzeln" type="button">Zurück zu 0 bis 10</button>
+  </div>
+</div>
+
+<div id="mitte" hidden></div>
+<div class="unten">
+  <p id="hinweis"></p>
+  <div class="punktknoepfe">
+    <button id="punkt" class="einzeln" type="button" aria-pressed="false">Punkt setzen</button>
+    <button id="loeschen" class="einzeln" type="button" disabled>Punkte löschen</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* Der Strahl rechnet mit BigInt (beliebig lange ganze Zahlen). Normale Kommazahlen wären nach etwa
+   15 Stellen ungenau, dann würde der Strahl beim tiefen Hineinzoomen ruckeln und falsche Zahlen zeigen.
+   Die Bildmitte ist cN * 10^(-P), die Vergrößerung ist L = log10(Pixel pro 1). */
+const canvas = document.getElementById("strahl");
+const ctx = canvas.getContext("2d");
+const elSchritt = document.getElementById("schritt");
+const elMitte = document.getElementById("mitte");
+const elHinweis = document.getElementById("hinweis");
+const btnWeiss = document.getElementById("bg-weiss");
+const btnSchwarz = document.getElementById("bg-schwarz");
+const btnMinus = document.getElementById("minus");
+const btnWeniger = document.getElementById("weniger");
+const btnMehr = document.getElementById("mehr");
+const btnPunkt = document.getElementById("punkt");
+const btnLoeschen = document.getElementById("loeschen");
+const btnStart = document.getElementById("start");
+
+const RAND = 0.08;          // Die 0 steht beim Start 8 % vom linken Rand entfernt
+const SCHMAL = " ";    // schmales Leerzeichen: 1 000 000
+const MINUS = "−";
+
+let W = 0, H = 0, DPR = 1;
+let L = 0, cN = 0n, P = 0;
+let minusAn = false;
+let dichte = 0;             // -2 bis 2: so viele Stufen weniger oder mehr Striche als automatisch
+let geplant = false;
+let linieY = 0;
+let aktE = 0, aktM = 1;     // aktueller Abstand der sichtbaren Striche: aktM * 10^aktE
+let punkte = [];            // gesetzte Punkte: Wert n * 10^e, exakt wie die Bildmitte
+let punktZaehler = 0;
+let punktModus = false;
+
+/* ---------- Rechnen ---------- */
+const potenzen = new Map();
+function pow10(k) {
+  let v = potenzen.get(k);
+  if (v === undefined) {
+    v = 10n ** BigInt(k);
+    potenzen.set(k, v);
+  }
+  return v;
+}
+function floorDiv(a, b) {
+  const q = a / b;
+  return (a % b !== 0n && (a < 0n) !== (b < 0n)) ? q - 1n : q;
+}
+const klemme = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function genauigkeit() {
+  const noetig = Math.max(0, Math.ceil(L) + 8);
+  if (noetig > P) {
+    cN *= pow10(noetig - P);
+    P = noetig;
+  }
+}
+// Wie viel ist eine Strecke von dx Pixeln wert, gemessen in Einheiten von 10^(-P)?
+function pixelWert(dx) {
+  genauigkeit();
+  const q = P - L;
+  const ganz = Math.floor(q);
+  const m = BigInt(Math.round(dx * Math.pow(10, q - ganz) * 1e6));
+  return ganz >= 6 ? m * pow10(ganz - 6) : m / pow10(6 - ganz);
+}
+function begrenzen() {
+  if (minusAn || !W) return;
+  const kleinste = pixelWert(W / 2 - W * RAND);
+  if (cN < kleinste) cN = kleinste;
+}
+// Wichtig: erst pixelWert ausrechnen, dann zu cN addieren. pixelWert kann cN und P neu skalieren.
+function mitteVersetzen(dx) {
+  const wert = pixelWert(dx);
+  cN += wert;
+}
+function verschieben(dx) {
+  mitteVersetzen(-dx);
+  begrenzen();
+  zeichnen();
+}
+function zoomen(x, dL) {
+  const abstand = x - W / 2;
+  mitteVersetzen(abstand);
+  L += dL;
+  mitteVersetzen(-abstand);
+  begrenzen();
+  zeichnen();
+}
+function startansicht() {
+  L = Math.log10(W * (1 - 2 * RAND) / 10);
+  cN = 0n;
+  P = 0;
+  cN = pixelWert(W / 2 - W * RAND);
+  zeichnen();
+}
+// Bildmitte in Vielfachen von 10^e: ganzer Teil c0 und Rest fr (0 bis 1)
+let einheitenCache = new Map();
+function einheiten(e) {
+  let v = einheitenCache.get(e);
+  if (v) return v;
+  const k = P + e;
+  if (k <= 0) {
+    v = { c0: cN * pow10(-k), fr: 0 };
+  } else {
+    const teiler = pow10(k);
+    const c0 = floorDiv(cN, teiler);
+    v = { c0, fr: Number((cN - c0 * teiler) * pow10(15) / teiler) / 1e15 };
+  }
+  einheitenCache.set(e, v);
+  return v;
+}
+
+/* ---------- Zahlen als Text ---------- */
+const GROSS = [null, null, "Million", "Milliarde", "Billion", "Billiarde", "Trillion", "Trilliarde",
+  "Quadrillion", "Quadrilliarde", "Quintillion", "Quintilliarde", "Sextillion", "Sextilliarde",
+  "Septillion", "Septilliarde", "Oktillion", "Oktilliarde", "Nonillion", "Nonilliarde",
+  "Dezillion", "Dezilliarde"];
+const mehrzahl = w => w.endsWith("e") ? w + "n" : w + "en";
+const HOCH = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻" };
+const hoch = n => String(n).split("").map(c => HOCH[c]).join("");
+const gruppieren = s => s.replace(/\B(?=(\d{3})+$)/g, SCHMAL);
+
+function zerlegen(n, e) {
+  const neg = n < 0n;
+  let z = (neg ? -n : n).toString();
+  if (e >= 0) return { neg, ganz: n === 0n ? "0" : z + "0".repeat(e), rest: "" };
+  const k = -e;
+  z = z.padStart(k + 1, "0");
+  return { neg, ganz: z.slice(0, -k), rest: z.slice(-k) };
+}
+function normal(n, e, kuerzen) {
+  const t = zerlegen(n, e);
+  const rest = kuerzen ? t.rest.replace(/0+$/, "") : t.rest;
+  return (t.neg ? MINUS : "") + gruppieren(t.ganz) + (rest ? "," + rest : "");
+}
+function benannt(n, e) {
+  const t = zerlegen(n, e);
+  const len = t.ganz.length;
+  const g = Math.floor((len - 1) / 3);
+  const vz = t.neg ? MINUS : "";
+  if (g >= GROSS.length) {
+    const rest = t.ganz.slice(1).replace(/0+$/, "");
+    return vz + t.ganz[0] + (rest ? "," + rest : "") + " · 10" + hoch(len - 1);
+  }
+  const kopf = t.ganz.slice(0, len - 3 * g);
+  const rest = t.ganz.slice(len - 3 * g).replace(/0+$/, "");
+  const eins = kopf === "1" && !rest;
+  return vz + kopf + (rest ? "," + rest : "") + " " + (eins ? GROSS[g] : mehrzahl(GROSS[g]));
+}
+// Sehr lange Zahlen: nur das Ende beschriften, die ganze Zahl steht über der Bildmitte
+function ende(n, e) {
+  const t = zerlegen(n, e);
+  const vz = t.neg ? MINUS : "";
+  const K = 9;
+  if (e >= 6) {
+    const g = Math.floor(e / 3);
+    const kopf = t.ganz.slice(0, t.ganz.length - 3 * g);
+    const einheit = g < GROSS.length ? mehrzahl(GROSS[g]) : "· 10" + hoch(3 * g);
+    const text = gruppieren(kopf.slice(-18));
+    return vz + (text.length > K ? "…" + text.slice(-K) : text) + " " + einheit;
+  }
+  const text = gruppieren(t.ganz.slice(-18)) + (t.rest ? "," + t.rest : "");
+  return vz + (text.length > K ? "…" + text.slice(-K) : text);
+}
+function beschriftung(n, stufe) {
+  if (n === 0n) return "0";
+  if (stufe.art === "normal") return normal(n, stufe.e, true);
+  if (stufe.art === "benannt") return benannt(n, stufe.e);
+  return ende(n, stufe.e);
+}
+const NAMEN_KLEIN = ["Zehntel", "Hundertstel", "Tausendstel", "Zehntausendstel", "Hunderttausendstel",
+  "Millionstel", "Zehnmillionstel", "Hundertmillionstel", "Milliardstel", "Zehnmilliardstel",
+  "Hundertmilliardstel", "Billionstel"];
+const NAMEN_GROSS = ["Einer", "Zehner", "Hunderter", "Tausender", "Zehntausender", "Hunderttausender"];
+function schrittText(e, m) {
+  if (m === 5) {
+    if (e >= 6 && e <= 12) return normal(5n, e, true) + " (" + benannt(5n, e) + ")";
+    if (e > 12) return benannt(5n, e);
+    return -e <= 8 ? normal(5n, e, true) : "5 · 10" + hoch(e);
+  }
+  if (e >= 0 && e < NAMEN_GROSS.length) return normal(1n, e, true) + " (" + NAMEN_GROSS[e] + ")";
+  if (e >= 6 && e <= 12) return normal(1n, e, true) + " (" + benannt(1n, e) + ")";
+  if (e > 12) return benannt(1n, e);
+  if (-e <= 8) return normal(1n, e, true) + " (1 " + NAMEN_KLEIN[-e - 1] + ")";
+  if (-e <= NAMEN_KLEIN.length) return "1 " + NAMEN_KLEIN[-e - 1];
+  return "10" + hoch(e);
+}
+
+function punktText(p) {
+  let t = normal(p.n, p.e, true);
+  const ziffern = t.replace(/\D/g, "");
+  if (ziffern.length > 13 && p.e >= 0 && ziffern.replace(/0+$/, "").length <= 7) t = benannt(p.n, p.e);
+  return t.length > 28 ? t.slice(0, 15) + "…" + t.slice(-10) : t;
+}
+
+/* ---------- Zeichnen ---------- */
+function zeichnen() {
+  if (geplant) return;
+  geplant = true;
+  requestAnimationFrame(malen);
+}
+function schrift(fs, fett) {
+  return (fett ? "700 " : "400 ") + fs + 'px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
+}
+// Wählt die Beschriftungsart und misst, wie breit die Zahlen am linken und rechten Bildrand werden
+function stufeMessen(e, m, sp, spd) {
+  const c = einheiten(e).c0;
+  const breite = BigInt(Math.ceil(Math.min(W / 2 / sp * m + 2, 1e15)));
+  const proben = [c - breite, c + breite].map(n => {
+    if (!minusAn && n < 0n) n = 5n;
+    return n - n % 10n + (n < 0n ? -5n : 5n);
+  });
+  const betrag = proben.map(n => n < 0n ? -n : n).reduce((a, b) => a > b ? a : b);
+  const stellen = betrag.toString().length;
+  const ganzStellen = e >= 0 ? stellen + e : Math.max(1, stellen + e);
+  const komma = Math.max(0, -e);
+  let art = "ende";
+  if (ganzStellen <= 13 && ganzStellen + komma <= 15) art = "normal";
+  else if (e >= 0 && ganzStellen - e <= 7) art = "benannt";
+  const stufe = { e, m, sp, art };
+  stufe.w = Math.max(...proben.map(n => ctx.measureText(beschriftung(n, stufe)).width), spd);
+  stufe.r = sp / stufe.w;
+  return stufe;
+}
+
+function malen() {
+  geplant = false;
+  if (!W || !H) return;
+  einheitenCache = new Map();
+  genauigkeit();
+  const schwarz = document.body.dataset.bg === "schwarz";
+  const fg = schwarz ? "#ffffff" : "#000000";
+  const bg = schwarz ? "#000000" : "#ffffff";
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const y = Math.round(H * 0.52);
+  linieY = y;
+  const fs = Math.round(klemme(W / 46, 18, 28));
+  const T = dichte === 1 ? 12 : dichte === 2 ? 6 : 24;   // ab so vielen Pixeln Abstand erscheinen Striche
+  const d = Math.ceil(Math.log10(T / 2) - L);            // feinste Strichstufe, die wir durchlaufen
+  const s = Math.pow(10, L + d);
+  const { c0, fr } = einheiten(d);
+  const xVon = n => W / 2 + (Number(n - c0) - fr) * s;
+
+  // Beschriftungsstufe: die feinste, bei der die Zahlen nebeneinander Platz haben
+  ctx.font = schrift(fs, false);
+  // Reihenfolge der Stufen: 1, 5, 10, 50, 100 ...
+  const stufen = [];
+  let auto = -1;
+  for (let e = d; e < d + 14 && auto < 0; e++) {
+    for (const m of [1, 5]) {
+      const stufe = stufeMessen(e, m, s * Math.pow(10, e - d) * m, fs * 1.6);
+      stufen.push(stufe);
+      if (stufe.r >= 1.35) { auto = stufen.length - 1; break; }
+    }
+  }
+  if (auto < 0) auto = stufen.length - 1;
+  let j = auto;
+  let feinAlpha = auto > 0 ? klemme((stufen[auto - 1].r - 1.05) / 0.3, 0, 1) : 0;
+  if (dichte > 0) {
+    // Mehr Zahlen, aber nur so viele, wie nebeneinander passen
+    const ziel = Math.max(auto - dichte, 0);
+    j = ziel;
+    while (j < auto && stufen[j].r < 1.15) j++;
+    feinAlpha = j > ziel ? klemme((stufen[j - 1].r - 1) / 0.15, 0, 1) : 0;
+  } else if (dichte < 0) {
+    // Weniger Zahlen, aber es bleiben immer mindestens zwei im Bild
+    for (let i = 0; i < -dichte; i++) {
+      const jetzt = stufen[j];
+      const e = jetzt.m === 1 ? jetzt.e : jetzt.e + 1;
+      const m = jetzt.m === 1 ? 5 : 1;
+      const sp = jetzt.sp * (jetzt.m === 1 ? 5 : 2);
+      if (sp > W * 0.9) { feinAlpha = 0; break; }
+      if (j === stufen.length - 1) stufen.push(stufeMessen(e, m, sp, fs * 1.6));
+      j++;
+    }
+  }
+  const gewaehlt = stufen[j];
+  const feiner = j > 0 ? stufen[j - 1] : null;
+
+  // Die Linie: ein Strahl beginnt bei 0, mit Minuszahlen läuft sie links weiter
+  const x0 = xVon(0n);
+  const links = minusAn ? 0 : klemme(x0, 0, W);
+  ctx.strokeStyle = fg;
+  ctx.fillStyle = fg;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(links, y);
+  ctx.lineTo(W - 22, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(W - 6, y);
+  ctx.lineTo(W - 26, y - 10);
+  ctx.lineTo(W - 26, y + 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Striche und Zahlen
+  const puffer = 320;
+  const labelY = y + 44;
+  let kleinstesX = Infinity, schrittE = gewaehlt.e, schrittM = gewaehlt.m;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  let n = c0 + BigInt(Math.floor((-W / 2 - puffer) / s + fr));
+  for (let x = xVon(n); x <= W + puffer; n += 1n, x = xVon(n)) {
+    if (!minusAn && n < 0n) continue;
+    let X, Xsicht, f = 1, fuenf = false;
+    if (n === 0n) {
+      X = Xsicht = Infinity;
+    } else {
+      let r = Number((n < 0n ? -n : n) % 100000000n);
+      if (r === 0) {
+        f = 1e8;
+        X = Xsicht = s * 1e8;
+      } else {
+        while (r % 10 === 0) { r /= 10; f *= 10; }
+        fuenf = r % 10 === 5;
+        X = s * f * (fuenf ? 5 : 1);
+        Xsicht = s * f * (fuenf ? 2 : 1);   // Fünferstriche kommen erst kurz vor den anderen
+      }
+    }
+    let alpha;
+    if (dichte < 0) {
+      alpha = X >= gewaehlt.sp * 0.999 ? 1 : (feiner && X >= feiner.sp * 0.999 ? feinAlpha : 0);
+    } else {
+      alpha = klemme((Xsicht - T) / (T * 2 / 3), 0, 1);
+    }
+    if (alpha <= 0 || x < -puffer) continue;
+    if (alpha >= 0.5 && n !== 0n && x >= 0 && x <= W && X < kleinstesX) {
+      kleinstesX = X;
+      schrittE = d + Math.round(Math.log10(f));
+      schrittM = fuenf ? 5 : 1;
+    }
+    const h = n === 0n ? 64 : klemme(12 + 16 * Math.log10(X / 24), 12, 56);
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = n === 0n ? 4 : 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y - h / 2);
+    ctx.lineTo(x, y + h / 2);
+    ctx.stroke();
+
+    let stufe = null, a = 0;
+    if (gewaehlt && X >= gewaehlt.sp * 0.999) { stufe = gewaehlt; a = 1; }
+    else if (feiner && X >= feiner.sp * 0.999) { stufe = feiner; a = feinAlpha; }
+    if (stufe && a > 0) {
+      const einheit = n / pow10(stufe.e - d);
+      ctx.globalAlpha = a;
+      ctx.font = schrift(fs, n === 0n);
+      ctx.fillText(beschriftung(einheit, stufe), x, labelY);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Gesetzte Punkte: erst nur der Buchstabe, nach dem Antippen auch die Zahl
+  ctx.textBaseline = "middle";
+  ctx.font = schrift(fs, true);
+  const sichtbar = [];
+  for (const p of punkte) {
+    p.x = null;
+    if (!minusAn && p.n < 0n) continue;
+    let N, rest = 0;
+    if (p.e >= d) {
+      N = p.n * pow10(p.e - d);
+    } else {
+      const t = pow10(d - p.e);
+      N = floorDiv(p.n, t);
+      rest = Number((p.n - N * t) * 1000000n / t) / 1e6;
+    }
+    const x = W / 2 + (Number(N - c0) + rest - fr) * s;
+    if (!Number.isFinite(x) || x < -40 || x > W + 40) continue;
+    p.x = x;
+    sichtbar.push(p);
+  }
+  // Schilder nebeneinanderliegender Punkte stapeln sich, damit jedes lesbar bleibt
+  sichtbar.sort((a, b) => a.x - b.x);
+  const reihenEnde = [];
+  for (const p of sichtbar) {
+    const x = p.x;
+    const text = p.offen ? p.name + " = " + punktText(p) : p.name;
+    const pw = Math.max(ctx.measureText(text).width + 28, fs + 20);
+    const ph = fs + 18;
+    const px = klemme(x, pw / 2 + 8, W - pw / 2 - 8);
+    let reihe = 0;
+    while (reihe < 4 && reihenEnde[reihe] > px - pw / 2 - 6) reihe++;
+    reihenEnde[reihe] = px + pw / 2;
+    const py = y - 60 - ph - reihe * (ph + 8);
+    ctx.fillStyle = "#d91f1a";
+    ctx.strokeStyle = "#d91f1a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, py + ph);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(px - pw / 2, py, pw, ph, 10);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = bg;
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(text, px, py + ph / 2 + 1);
+    p.feld = { x: px - pw / 2, y: py, w: pw, h: ph };
+  }
+  ctx.fillStyle = fg;
+  ctx.strokeStyle = fg;
+
+  // Anzeige der Schrittweite
+  aktE = schrittE;
+  aktM = schrittM;
+  const text = schrittText(schrittE, schrittM);
+  if (elSchritt.textContent !== text) elSchritt.textContent = text;
+
+  // Bei sehr langen Zahlen: die ganze Zahl über der Bildmitte zeigen
+  const lang = gewaehlt && gewaehlt.art === "ende";
+  elMitte.hidden = !lang;
+  if (lang) {
+    const e = gewaehlt.e - 1;
+    let voll = normal(einheiten(e).c0, e, false);
+    if (voll.length > 90) voll = voll.slice(0, 48) + " … " + voll.slice(-30);
+    elMitte.innerHTML = "";
+    const titel = document.createElement("span");
+    titel.textContent = "In der Mitte: ";
+    elMitte.append(titel, voll);
+    ctx.beginPath();
+    ctx.moveTo(W / 2, y - 36);
+    ctx.lineTo(W / 2 - 10, y - 52);
+    ctx.lineTo(W / 2 + 10, y - 52);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function groesse() {
+  const vorher = W;
+  const breite = window.innerWidth, hoehe = window.innerHeight;
+  if (!breite || !hoehe) return;       // Rahmen noch nicht sichtbar: warten, bis er eine Größe hat
+  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  W = breite;
+  H = hoehe;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  if (!vorher) startansicht();
+  else {
+    L += Math.log10(W / vorher);       // Beim Drehen des iPads bleibt derselbe Zahlenbereich im Bild
+    begrenzen();
+    zeichnen();
+  }
+}
+
+/* ---------- Gesten ---------- */
+let geste = false;
+function bewegt() {
+  if (geste) return;
+  geste = true;
+  hinweisZeigen();
+}
+function hinweisZeigen() {
+  if (punktModus) {
+    elHinweis.textContent = "Tippe auf den Strahl, um einen Punkt zu setzen. Tippe auf einen Punkt, um seine Zahl zu zeigen.";
+  } else if (geste) {
+    elHinweis.textContent = "";
+  } else {
+    elHinweis.textContent = window.matchMedia("(pointer: coarse)").matches
+      ? "Mit zwei Fingern verschieben. Finger auseinanderziehen zoomt hinein, zusammenziehen zoomt heraus."
+      : "Mit der Maus ziehen zum Verschieben. Mausrad oder Trackpad zoomt.";
+  }
+}
+
+/* Punkte rasten auf den feinsten sichtbaren Strich ein. Bei wenigen Strichen (0, 5, 10) rasten sie
+   trotzdem auf gut treffbare Zahlen ein, damit man zum Beispiel die 3 markieren und raten lassen kann. */
+function rasterWert(x) {
+  const wert = pixelWert(x - W / 2);
+  const v = cN + wert;
+  let e = Math.ceil(Math.log10(24) - L), m = 1;
+  if (aktM * Math.pow(10, aktE + L) < Math.pow(10, e + L)) {
+    e = aktE;
+    m = aktM;
+  }
+  const raster = pow10(e + P) * BigInt(m);
+  let n = floorDiv(2n * v + raster, 2n * raster) * BigInt(m);
+  if (!minusAn && n < 0n) n = 0n;
+  return { n, e };
+}
+function punktBei(x, y) {
+  for (let i = punkte.length - 1; i >= 0; i--) {
+    const p = punkte[i];
+    if (p.x === null) continue;
+    const f = p.feld;
+    const imFeld = x >= f.x - 10 && x <= f.x + f.w + 10 && y >= f.y - 10 && y <= f.y + f.h + 10;
+    if (imFeld || Math.hypot(x - p.x, y - linieY) <= 36) return p;
+  }
+  return null;
+}
+function neuerPunkt(x) {
+  const name = String.fromCharCode(65 + punktZaehler % 26);
+  punktZaehler++;
+  punkte.push({ ...rasterWert(x), name, offen: false, x: null });
+  btnLoeschen.disabled = false;
+  zeichnen();
+}
+let tipp = null;
+function tippStart(x, y) {
+  tipp = { x, y, punkt: punktBei(x, y), gezogen: false };
+}
+function tippZug(x, y) {
+  if (!tipp) return;
+  if (Math.hypot(x - tipp.x, y - tipp.y) > 10) tipp.gezogen = true;
+  if (tipp.gezogen && tipp.punkt) {
+    Object.assign(tipp.punkt, rasterWert(x));
+    zeichnen();
+  }
+}
+function tippEnde() {
+  const t = tipp;
+  tipp = null;
+  if (!t || t.gezogen) return;
+  if (t.punkt) {
+    t.punkt.offen = !t.punkt.offen;
+    zeichnen();
+  } else if (punktModus) {
+    neuerPunkt(t.x);
+  }
+}
+let letzte = null;
+function fingerLage(e) {
+  const a = e.touches[0], b = e.touches[1];
+  return {
+    x: (a.clientX + b.clientX) / 2,
+    abstand: Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))
+  };
+}
+function fingerNeu(e) {
+  e.preventDefault();
+  letzte = e.touches.length >= 2 ? fingerLage(e) : null;
+}
+canvas.addEventListener("touchstart", e => {
+  fingerNeu(e);
+  if (e.touches.length === 1) tippStart(e.touches[0].clientX, e.touches[0].clientY);
+  else tipp = null;
+}, { passive: false });
+canvas.addEventListener("touchend", e => {
+  fingerNeu(e);
+  if (e.touches.length === 0) tippEnde();
+}, { passive: false });
+canvas.addEventListener("touchcancel", e => {
+  fingerNeu(e);
+  tipp = null;
+}, { passive: false });
+canvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    tippZug(e.touches[0].clientX, e.touches[0].clientY);
+    return;
+  }
+  if (e.touches.length < 2 || !letzte) return;
+  const jetzt = fingerLage(e);
+  mitteVersetzen(letzte.x - jetzt.x);
+  zoomen(jetzt.x, Math.log10(jetzt.abstand / letzte.abstand));
+  letzte = jetzt;
+  bewegt();
+}, { passive: false });
+// Safari soll die Seite nicht selbst zoomen oder federn lassen
+for (const typ of ["gesturestart", "gesturechange", "gestureend"]) {
+  document.addEventListener(typ, e => e.preventDefault(), { passive: false });
+}
+document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+
+// Am Computer: Maus ziehen, Mausrad oder Trackpad
+let mausX = null;
+canvas.addEventListener("pointerdown", e => {
+  if (e.pointerType !== "mouse") return;
+  tippStart(e.clientX, e.clientY);
+  if (!tipp.punkt) mausX = e.clientX;
+  canvas.setPointerCapture(e.pointerId);
+  canvas.classList.add("zieht");
+});
+canvas.addEventListener("pointermove", e => {
+  if (e.pointerType === "mouse") tippZug(e.clientX, e.clientY);
+  if (mausX === null) return;
+  verschieben(e.clientX - mausX);
+  mausX = e.clientX;
+  bewegt();
+});
+function mausLos() {
+  mausX = null;
+  canvas.classList.remove("zieht");
+}
+canvas.addEventListener("pointerup", e => {
+  if (e.pointerType === "mouse") tippEnde();
+  mausLos();
+});
+canvas.addEventListener("pointercancel", () => {
+  if (mausX !== null) tipp = null;
+  mausLos();
+});
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const faktor = e.deltaMode === 1 ? 16 : 1;
+  if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    verschieben(-e.deltaX * faktor);
+  } else {
+    zoomen(e.clientX, -e.deltaY * faktor * (e.ctrlKey ? 0.01 : 0.002));
+  }
+  bewegt();
+}, { passive: false });
+
+/* ---------- Schalter ---------- */
+function merken(name, wert) {
+  try { localStorage.setItem("zahlenstrahl-" + name, wert); } catch (err) { /* ohne Speicher geht es auch */ }
+}
+function lesen(name) {
+  try { return localStorage.getItem("zahlenstrahl-" + name); } catch (err) { return null; }
+}
+function hintergrund(wert) {
+  document.body.dataset.bg = wert;
+  btnWeiss.setAttribute("aria-pressed", String(wert === "weiss"));
+  btnSchwarz.setAttribute("aria-pressed", String(wert === "schwarz"));
+  merken("hintergrund", wert);
+  zeichnen();
+}
+function minuszahlen(an) {
+  minusAn = an;
+  btnMinus.setAttribute("aria-pressed", String(an));
+  merken("minus", an ? "an" : "aus");
+  begrenzen();
+  zeichnen();
+}
+function dichteAendern(schritt) {
+  dichte = klemme(dichte + schritt, -2, 2);
+  btnWeniger.disabled = dichte === -2;
+  btnMehr.disabled = dichte === 2;
+  zeichnen();
+}
+btnWeniger.addEventListener("click", () => dichteAendern(-1));
+btnMehr.addEventListener("click", () => dichteAendern(1));
+btnWeiss.addEventListener("click", () => hintergrund("weiss"));
+btnSchwarz.addEventListener("click", () => hintergrund("schwarz"));
+btnMinus.addEventListener("click", () => minuszahlen(!minusAn));
+btnStart.addEventListener("click", startansicht);
+
+btnPunkt.addEventListener("click", () => {
+  punktModus = !punktModus;
+  btnPunkt.setAttribute("aria-pressed", String(punktModus));
+  hinweisZeigen();
+});
+btnLoeschen.addEventListener("click", () => {
+  punkte = [];
+  punktZaehler = 0;
+  btnLoeschen.disabled = true;
+  zeichnen();
+});
+
+hinweisZeigen();
+
+window.addEventListener("resize", groesse);
+new ResizeObserver(groesse).observe(document.documentElement);
+groesse();
+hintergrund(lesen("hintergrund") === "schwarz" ? "schwarz" : "weiss");
+minuszahlen(lesen("minus") === "an");
+</script>
+</body>
+</html>
