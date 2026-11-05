@@ -12,8 +12,9 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 - Bei sehr langen Zahlen zeigen die Striche nur das Zahlenende, die ganze Zahl steht über der Bildmitte.
 - Schalter: Hintergrund Weiß/Schwarz, Minuszahlen (Standard aus, ein Strahl beginnt bei 0), Zurück zu 0 bis 10. Gemerkt wird in localStorage.
 - Knöpfe Weniger/Mehr Striche: `dichte` von -2 bis 2, relativ zur automatischen Stufe (Reihe 1, 5, 10, 50 ...), gilt also bei jedem Zoom. Bei 0 bis 10: -2 = 0 und 10, -1 = 0, 5, 10, 0 = alle Einer, +1 = Halbe, +2 = zusätzlich Zehntel-Striche. Wird nicht gespeichert und bleibt bei „Zurück zu 0 bis 10“ erhalten.
-- Punkte zum Raten: Knopf „Punkt setzen“, dann Tippen mit einem Finger setzt einen roten Punkt mit Buchstabe (A, B, C ...). Antippen zeigt oder verbirgt die Zahl, Ziehen verschiebt, „Punkte löschen“ entfernt alle. Punkte rasten ein (`rasterWert`), sind exakt gespeichert und bleiben beim Zoomen an ihrer Zahl. Sie werden nicht gespeichert.
+- Punkte zum Raten: Knopf „Punkt setzen“, dann Tippen mit einem Finger setzt einen roten Punkt mit Buchstabe (A, B, C ...). Antippen zeigt oder verbirgt die Zahl, Ziehen verschiebt, „Alles löschen“ entfernt alle. Punkte rasten ein (`rasterWert`), sind exakt gespeichert und bleiben beim Zoomen an ihrer Zahl. Sie werden nicht gespeichert.
 - Laserpointer: Knopf an, dann folgt ein schlichter roter Punkt (ohne Schein) frei einem Finger über den ganzen Bildschirm, zum Beispiel für Bögen. Er zieht keine Spur, bleibt nach dem Loslassen stehen und hat eine feste Bildschirmposition, bewegt sich also beim Zoomen nicht mit den Zahlen. Schließt sich mit „Punkt setzen“ gegenseitig aus. Solange er an ist, reagieren Punkte nicht auf Tippen.
+- Stift: Knopf an, dann zeichnet ein Finger oder Apple Pencil rote Linien. Linien hängen an ihrer Zahl (`strichStart`: Anker exakt, Weg in Pixeln) und strecken sich beim Zoomen nur waagerecht. Rückgängig nimmt die letzte Linie weg, „Alles löschen“ entfernt Linien und Punkte. Nicht gespeichert. Laser, Stift und Punkt setzen schließen sich gegenseitig aus (`werkzeug`).
 
 ## Hosting und Veröffentlichen
 

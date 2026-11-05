@@ -164,12 +164,15 @@ button:disabled {
 }
 .punktknoepfe {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
   margin-left: auto;
   pointer-events: auto;
 }
 #punkt[aria-pressed="true"],
-#laser[aria-pressed="true"] {
+#laser[aria-pressed="true"],
+#stift[aria-pressed="true"] {
   background: var(--punkt);
   color: #ffffff;
 }
@@ -203,8 +206,10 @@ button:disabled {
   <p id="hinweis"></p>
   <div class="punktknoepfe">
     <button id="laser" class="einzeln" type="button" aria-pressed="false">Laserpointer</button>
+    <button id="stift" class="einzeln" type="button" aria-pressed="false">Stift</button>
     <button id="punkt" class="einzeln" type="button" aria-pressed="false">Punkt setzen</button>
-    <button id="loeschen" class="einzeln" type="button" disabled>Punkte löschen</button>
+    <button id="zurueck" class="einzeln" type="button" disabled>Rückgängig</button>
+    <button id="loeschen" class="einzeln" type="button" disabled>Alles löschen</button>
   </div>
 </div>
 
@@ -224,6 +229,8 @@ const btnMinus = document.getElementById("minus");
 const btnWeniger = document.getElementById("weniger");
 const btnMehr = document.getElementById("mehr");
 const btnLaser = document.getElementById("laser");
+const btnStift = document.getElementById("stift");
+const btnZurueck = document.getElementById("zurueck");
 const btnPunkt = document.getElementById("punkt");
 const btnLoeschen = document.getElementById("loeschen");
 const btnStart = document.getElementById("start");
@@ -242,6 +249,9 @@ let aktE = 0, aktM = 1;     // aktueller Abstand der sichtbaren Striche: aktM * 
 let punkte = [];            // gesetzte Punkte: Wert n * 10^e, exakt wie die Bildmitte
 let punktZaehler = 0;
 let punktModus = false;
+let stiftModus = false;
+let striche = [];           // gezeichnete Linien, siehe strichStart
+let aktuellerStrich = null;
 let laser = null;           // Laserpunkt: Bildschirmposition {x, y}. null = aus
 
 /* ---------- Rechnen ---------- */
@@ -566,10 +576,6 @@ function malen() {
   }
   ctx.globalAlpha = 1;
 
-  // Gesetzte Punkte: erst nur der Buchstabe, nach dem Antippen auch die Zahl
-  ctx.textBaseline = "middle";
-  ctx.font = schrift(fs, true);
-  const sichtbar = [];
   const wertX = w => {
     let N, rest = 0;
     if (w.e >= d) {
@@ -581,6 +587,38 @@ function malen() {
     }
     return W / 2 + (Number(N - c0) + rest - fr) * s;
   };
+
+  // Gezeichnete Linien: hängen an ihrer Zahl und werden beim Zoomen waagerecht mitgestreckt
+  ctx.strokeStyle = "#d91f1a";
+  ctx.fillStyle = "#d91f1a";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const strich of striche) {
+    const ax = wertX(strich.anker);
+    const f = Math.pow(10, L - strich.L);
+    if (!Number.isFinite(ax) || !Number.isFinite(f)) continue;
+    const px = i => ax + strich.weg[i][0] * f;
+    const py = i => y + strich.weg[i][1];
+    ctx.beginPath();
+    if (strich.weg.length === 1) {
+      ctx.arc(px(0), py(0), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    ctx.moveTo(px(0), py(0));
+    for (let i = 1; i < strich.weg.length - 1; i++) {
+      ctx.quadraticCurveTo(px(i), py(i), (px(i) + px(i + 1)) / 2, (py(i) + py(i + 1)) / 2);
+    }
+    ctx.lineTo(px(strich.weg.length - 1), py(strich.weg.length - 1));
+    ctx.stroke();
+  }
+  ctx.lineCap = "butt";
+
+  // Gesetzte Punkte: erst nur der Buchstabe, nach dem Antippen auch die Zahl
+  ctx.textBaseline = "middle";
+  ctx.font = schrift(fs, true);
+  const sichtbar = [];
   for (const p of punkte) {
     p.x = null;
     if (!minusAn && p.n < 0n) continue;
@@ -686,6 +724,8 @@ function bewegt() {
 function hinweisZeigen() {
   if (laser) {
     elHinweis.textContent = "Bewege einen Finger über den Bildschirm. Der Laserpunkt folgt ihm.";
+  } else if (stiftModus) {
+    elHinweis.textContent = "Zeichne mit einem Finger oder dem Apple Pencil. Mit zwei Fingern geht Zoomen weiter.";
   } else if (punktModus) {
     elHinweis.textContent = "Tippe auf den Strahl, um einen Punkt zu setzen. Tippe auf einen Punkt, um seine Zahl zu zeigen.";
   } else if (geste) {
@@ -712,6 +752,41 @@ function rasterWert(x) {
   if (!minusAn && n < 0n) n = 0n;
   return { n, e };
 }
+/* Eine Linie merkt sich die genaue Zahl am Startpunkt (anker) und die Vergrößerung L beim Zeichnen.
+   Der Weg ist in Pixeln gespeichert: waagerecht ab dem Anker, senkrecht ab dem Strahl. */
+function strichStart(x, y) {
+  const wert = pixelWert(x - W / 2);
+  const v = cN + wert;
+  const e = Math.ceil(-L) - 3;
+  const raster = pow10(e + P);
+  const anker = { n: floorDiv(2n * v + raster, 2n * raster), e };
+  aktuellerStrich = { anker, L, x0: x, weg: [[0, y - linieY]] };
+  striche.push(aktuellerStrich);
+  knoepfePruefen();
+  zeichnen();
+}
+function strichZug(x, y) {
+  const st = aktuellerStrich;
+  if (!st) return;
+  const punkt = [x - st.x0, y - linieY];
+  const letzter = st.weg[st.weg.length - 1];
+  if (Math.hypot(punkt[0] - letzter[0], punkt[1] - letzter[1]) < 2) return;
+  st.weg.push(punkt);
+  zeichnen();
+}
+// Der zweite Finger kommt beim Zoomen oft kurz nach dem ersten: dessen Mini-Strich fällt dann weg
+function strichAbbrechen() {
+  if (aktuellerStrich && aktuellerStrich.weg.length < 8) {
+    striche.pop();
+    knoepfePruefen();
+    zeichnen();
+  }
+  aktuellerStrich = null;
+}
+function knoepfePruefen() {
+  btnZurueck.disabled = striche.length === 0;
+  btnLoeschen.disabled = striche.length === 0 && punkte.length === 0;
+}
 function laserSetzen(x, y) {
   laser = { x, y };
   zeichnen();
@@ -730,15 +805,20 @@ function neuerPunkt(x) {
   const name = String.fromCharCode(65 + punktZaehler % 26);
   punktZaehler++;
   punkte.push({ ...rasterWert(x), name, offen: false, x: null });
-  btnLoeschen.disabled = false;
+  knoepfePruefen();
   zeichnen();
 }
 let tipp = null;
 function tippStart(x, y) {
-  tipp = { x, y, punkt: laser ? null : punktBei(x, y), gezogen: false };
+  tipp = { x, y, punkt: laser || stiftModus ? null : punktBei(x, y), gezogen: false };
+  if (stiftModus) strichStart(x, y);
 }
 function tippZug(x, y) {
   if (!tipp) return;
+  if (stiftModus) {
+    strichZug(x, y);
+    return;
+  }
   if (laser) {
     tipp.gezogen = true;
     laserSetzen(x, y);
@@ -753,6 +833,7 @@ function tippZug(x, y) {
 function tippEnde() {
   const t = tipp;
   tipp = null;
+  aktuellerStrich = null;
   if (!t || t.gezogen) return;
   if (laser) {
     laserSetzen(t.x, t.y);
@@ -777,8 +858,12 @@ function fingerNeu(e) {
 }
 canvas.addEventListener("touchstart", e => {
   fingerNeu(e);
-  if (e.touches.length === 1) tippStart(e.touches[0].clientX, e.touches[0].clientY);
-  else tipp = null;
+  if (e.touches.length === 1) {
+    tippStart(e.touches[0].clientX, e.touches[0].clientY);
+  } else {
+    tipp = null;
+    strichAbbrechen();
+  }
 }, { passive: false });
 canvas.addEventListener("touchend", e => {
   fingerNeu(e);
@@ -787,6 +872,7 @@ canvas.addEventListener("touchend", e => {
 canvas.addEventListener("touchcancel", e => {
   fingerNeu(e);
   tipp = null;
+  aktuellerStrich = null;
 }, { passive: false });
 canvas.addEventListener("touchmove", e => {
   e.preventDefault();
@@ -812,7 +898,7 @@ let mausX = null;
 canvas.addEventListener("pointerdown", e => {
   if (e.pointerType !== "mouse") return;
   tippStart(e.clientX, e.clientY);
-  if (!tipp.punkt && !laser) mausX = e.clientX;
+  if (!tipp.punkt && !laser && !stiftModus) mausX = e.clientX;
   canvas.setPointerCapture(e.pointerId);
   canvas.classList.add("zieht");
 });
@@ -833,6 +919,7 @@ canvas.addEventListener("pointerup", e => {
 });
 canvas.addEventListener("pointercancel", () => {
   if (mausX !== null) tipp = null;
+  aktuellerStrich = null;
   mausLos();
 });
 canvas.addEventListener("wheel", e => {
@@ -889,20 +976,30 @@ function laserSchalten(an) {
   btnLaser.setAttribute("aria-pressed", String(an));
   zeichnen();
 }
-btnLaser.addEventListener("click", () => {
-  laserSchalten(!laser);
-  if (laser) punktModusSetzen(false);
+function stiftSetzen(an) {
+  stiftModus = an;
+  btnStift.setAttribute("aria-pressed", String(an));
+}
+// Laser, Stift und Punkt setzen schließen sich gegenseitig aus
+function werkzeug(name, an) {
+  laserSchalten(name === "laser" && an);
+  stiftSetzen(name === "stift" && an);
+  punktModusSetzen(name === "punkt" && an);
   hinweisZeigen();
-});
-btnPunkt.addEventListener("click", () => {
-  punktModusSetzen(!punktModus);
-  if (punktModus) laserSchalten(false);
-  hinweisZeigen();
+}
+btnLaser.addEventListener("click", () => werkzeug("laser", !laser));
+btnStift.addEventListener("click", () => werkzeug("stift", !stiftModus));
+btnPunkt.addEventListener("click", () => werkzeug("punkt", !punktModus));
+btnZurueck.addEventListener("click", () => {
+  striche.pop();
+  knoepfePruefen();
+  zeichnen();
 });
 btnLoeschen.addEventListener("click", () => {
   punkte = [];
   punktZaehler = 0;
-  btnLoeschen.disabled = true;
+  striche = [];
+  knoepfePruefen();
   zeichnen();
 });
 
