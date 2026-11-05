@@ -5,7 +5,7 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 
 ## Technik
 
-- Eine einzige Datei `index.html`, Canvas, kein Framework, keine externen Schriften (Systemschrift des iPads).
+- Seite ist `index.html`, dazu `icon.svg` (Browser-Tab) und `apple-touch-icon.png` (Home-Bildschirm, 180 x 180). Canvas, kein Framework, keine externen Schriften (Systemschrift des iPads).
 - Rechnet mit BigInt, damit der Strahl auch nach 80 Nachkommastellen exakt bleibt. Bildmitte = `cN * 10^(-P)`, Zoom = `L` (log10 Pixel pro 1).
 - Wichtig: `pixelWert()` kann `cN` und `P` neu skalieren. Deshalb nie `cN += pixelWert(...)` schreiben, sondern `mitteVersetzen()` nutzen.
 - Zahlen in deutscher Schreibweise: Komma, schmale Leerzeichen, Zahlwörter bis Dezilliarde, danach Zehnerpotenzen.
