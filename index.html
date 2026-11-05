@@ -131,6 +131,35 @@ button:disabled {
   color: var(--bg);
 }
 
+.schalter { margin-left: auto; justify-content: flex-end; }
+.schalter.ganz { flex-basis: 100%; }
+.farben {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--chip);
+}
+.farben button {
+  width: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.farben span {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.farben button[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--fg); }
+#leiste-an {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: var(--chip);
+  color: var(--muted);
+  opacity: 0.6;
+}
 #mitte {
   position: fixed;
   left: 20px;
@@ -172,7 +201,8 @@ button:disabled {
 }
 #punkt[aria-pressed="true"],
 #laser[aria-pressed="true"],
-#stift[aria-pressed="true"] {
+#stift[aria-pressed="true"],
+#sprung[aria-pressed="true"] {
   background: var(--punkt);
   color: #ffffff;
 }
@@ -182,12 +212,15 @@ button:disabled {
 <body data-bg="weiss">
 <canvas id="strahl" role="img" aria-label="Zahlenstrahl zum Verschieben und Zoomen"></canvas>
 
-<div class="oben">
-  <div class="schritt">
+<div class="oben" id="haupt-oben">
+  <div class="schritt" id="schritt-box">
     <small>Von Strich zu Strich</small>
     <strong id="schritt">1</strong>
   </div>
   <div class="schalter">
+    <button id="leiste-aus" class="einzeln" type="button">Knöpfe ausblenden</button>
+  </div>
+  <div class="schalter ganz">
     <div class="gruppe" role="group" aria-label="Hintergrund">
       <button id="bg-weiss" type="button" aria-pressed="true">Weiß</button>
       <button id="bg-schwarz" type="button" aria-pressed="false">Schwarz</button>
@@ -197,16 +230,25 @@ button:disabled {
       <button id="mehr" type="button">Mehr Striche</button>
     </div>
     <button id="minus" class="einzeln" type="button" aria-pressed="false">Minuszahlen</button>
+    <button id="zahlen" class="einzeln" type="button">Zahlen: alle</button>
     <button id="start" class="einzeln" type="button">Zurück zu 0 bis 10</button>
   </div>
 </div>
 
 <div id="mitte" hidden></div>
-<div class="unten">
+<button id="leiste-an" type="button" hidden>Knöpfe</button>
+
+<div class="unten" id="haupt-unten">
   <p id="hinweis"></p>
   <div class="punktknoepfe">
     <button id="laser" class="einzeln" type="button" aria-pressed="false">Laserpointer</button>
+    <div class="farben" id="farben" role="group" aria-label="Stiftfarbe" hidden>
+      <button type="button" data-farbe="#d91f1a" aria-label="Rot" aria-pressed="true"><span style="background:#d91f1a"></span></button>
+      <button type="button" data-farbe="#2f6bff" aria-label="Blau" aria-pressed="false"><span style="background:#2f6bff"></span></button>
+      <button type="button" data-farbe="#12a150" aria-label="Grün" aria-pressed="false"><span style="background:#12a150"></span></button>
+    </div>
     <button id="stift" class="einzeln" type="button" aria-pressed="false">Stift</button>
+    <button id="sprung" class="einzeln" type="button" aria-pressed="false">Rechensprung</button>
     <button id="punkt" class="einzeln" type="button" aria-pressed="false">Punkt setzen</button>
     <button id="zurueck" class="einzeln" type="button" disabled>Rückgängig</button>
     <button id="loeschen" class="einzeln" type="button" disabled>Alles löschen</button>
@@ -231,6 +273,13 @@ const btnMehr = document.getElementById("mehr");
 const btnLaser = document.getElementById("laser");
 const btnStift = document.getElementById("stift");
 const btnZurueck = document.getElementById("zurueck");
+const btnSprung = document.getElementById("sprung");
+const btnZahlen = document.getElementById("zahlen");
+const elFarben = document.getElementById("farben");
+const elSchrittBox = document.getElementById("schritt-box");
+const elHauptOben = document.getElementById("haupt-oben");
+const elHauptUnten = document.getElementById("haupt-unten");
+const btnLeisteAn = document.getElementById("leiste-an");
 const btnPunkt = document.getElementById("punkt");
 const btnLoeschen = document.getElementById("loeschen");
 const btnStart = document.getElementById("start");
@@ -250,6 +299,11 @@ let punkte = [];            // gesetzte Punkte: Wert n * 10^e, exakt wie die Bil
 let punktZaehler = 0;
 let punktModus = false;
 let stiftModus = false;
+let stiftFarbe = "#d91f1a";
+let sprungModus = false;
+let sprungStart = null;     // Startzahl des nächsten Rechensprungs
+let zahlenStufe = 0;        // 0 = alle Zahlen, 1 = Anfang und Ende, 2 = Anfang, Mitte und Ende
+let leisteAus = false;
 let striche = [];           // gezeichnete Linien, siehe strichStart
 let aktuellerStrich = null;
 let laser = null;           // Laserpunkt: Bildschirmposition {x, y}. null = aus
@@ -445,6 +499,31 @@ function stufeMessen(e, m, sp, spd) {
   return stufe;
 }
 
+// Rechensprung: Bogen über dem Strahl mit Pfeilspitze am Ziel und Beschriftung wie +3
+function sprungMalen(sp, xa, xb, y, fs) {
+  if (!Number.isFinite(xa) || !Number.isFinite(xb)) return;
+  xa = klemme(xa, -100000, 100000);
+  xb = klemme(xb, -100000, 100000);
+  const mx = (xa + xb) / 2;
+  const h = klemme(Math.abs(xb - xa) * 0.35, 18, 150);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(xa, y);
+  ctx.quadraticCurveTo(mx, y - 2 * h, xb, y);
+  ctx.stroke();
+  const w = Math.atan2(2 * h, xb - mx);
+  ctx.beginPath();
+  ctx.moveTo(xb, y);
+  ctx.lineTo(xb - 16 * Math.cos(w - 0.45), y - 16 * Math.sin(w - 0.45));
+  ctx.lineTo(xb - 16 * Math.cos(w + 0.45), y - 16 * Math.sin(w + 0.45));
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = schrift(fs, true);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(sp.text, mx, y - h - 8);
+}
+
 function malen() {
   geplant = false;
   if (!W || !H) return;
@@ -523,6 +602,7 @@ function malen() {
   // Striche und Zahlen
   const puffer = 320;
   const labelY = y + 44;
+  const zahlen = [];
   let kleinstesX = Infinity, schrittE = gewaehlt.e, schrittM = gewaehlt.m;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -569,10 +649,21 @@ function malen() {
     else if (feiner && X >= feiner.sp * 0.999) { stufe = feiner; a = feinAlpha; }
     if (stufe && a > 0) {
       const einheit = n / pow10(stufe.e - d);
-      ctx.globalAlpha = a;
-      ctx.font = schrift(fs, n === 0n);
-      ctx.fillText(beschriftung(einheit, stufe), x, labelY);
+      zahlen.push({ text: beschriftung(einheit, stufe), x, a, fett: n === 0n });
     }
+  }
+  let zuZeigen = zahlen;
+  if (zahlenStufe !== 0) {
+    const imBild = zahlen.filter(z => z.a === 1 && z.x >= 20 && z.x <= W - 40);
+    // Ungerade Anzahl, damit die Mitte genau zwischen Anfang und Ende liegt
+    if (imBild.length > 2 && imBild.length % 2 === 0) imBild.pop();
+    const ende = imBild.length - 1;
+    zuZeigen = imBild.filter((z, i) => i === 0 || i === ende || (zahlenStufe === 2 && i === ende / 2));
+  }
+  for (const z of zuZeigen) {
+    ctx.globalAlpha = z.a;
+    ctx.font = schrift(fs, z.fett);
+    ctx.fillText(z.text, z.x, labelY);
   }
   ctx.globalAlpha = 1;
 
@@ -589,12 +680,16 @@ function malen() {
   };
 
   // Gezeichnete Linien: hängen an ihrer Zahl und werden beim Zoomen waagerecht mitgestreckt
-  ctx.strokeStyle = "#d91f1a";
-  ctx.fillStyle = "#d91f1a";
   ctx.lineWidth = 5;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const strich of striche) {
+    ctx.strokeStyle = strich.farbe;
+    ctx.fillStyle = strich.farbe;
+    if (strich.sprung) {
+      sprungMalen(strich, wertX(strich.a), wertX(strich.b), y, fs);
+      continue;
+    }
     const ax = wertX(strich.anker);
     const f = Math.pow(10, L - strich.L);
     if (!Number.isFinite(ax) || !Number.isFinite(f)) continue;
@@ -614,10 +709,18 @@ function malen() {
     ctx.stroke();
   }
   ctx.lineCap = "butt";
+  if (sprungModus && sprungStart) {
+    ctx.fillStyle = stiftFarbe;
+    ctx.beginPath();
+    ctx.arc(wertX(sprungStart), y, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // Gesetzte Punkte: erst nur der Buchstabe, nach dem Antippen auch die Zahl
   ctx.textBaseline = "middle";
   ctx.font = schrift(fs, true);
+  // Der Punkt bleibt so klein, dass die Striche daneben sichtbar sind
+  const punktRadius = klemme(kleinstesX * 0.22, 3, 9);
   const sichtbar = [];
   for (const p of punkte) {
     p.x = null;
@@ -651,11 +754,8 @@ function malen() {
     ctx.roundRect(px - pw / 2, py, pw, ph, 10);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.arc(x, y, punktRadius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = bg;
-    ctx.stroke();
     ctx.fillStyle = "#ffffff";
     ctx.fillText(text, px, py + ph / 2 + 1);
     p.feld = { x: px - pw / 2, y: py, w: pw, h: ph };
@@ -677,7 +777,7 @@ function malen() {
   if (elSchritt.textContent !== text) elSchritt.textContent = text;
 
   // Bei sehr langen Zahlen: die ganze Zahl über der Bildmitte zeigen
-  const lang = gewaehlt && gewaehlt.art === "ende";
+  const lang = gewaehlt && gewaehlt.art === "ende" && zahlenStufe === 0;
   elMitte.hidden = !lang;
   if (lang) {
     const e = gewaehlt.e - 1;
@@ -724,6 +824,8 @@ function bewegt() {
 function hinweisZeigen() {
   if (laser) {
     elHinweis.textContent = "Bewege einen Finger über den Bildschirm. Der Laserpunkt folgt ihm.";
+  } else if (sprungModus) {
+    elHinweis.textContent = "Tippe auf die Startzahl, dann auf das Ziel. Der nächste Sprung beginnt am Ziel.";
   } else if (stiftModus) {
     elHinweis.textContent = "Zeichne mit einem Finger oder dem Apple Pencil. Mit zwei Fingern geht Zoomen weiter.";
   } else if (punktModus) {
@@ -760,7 +862,7 @@ function strichStart(x, y) {
   const e = Math.ceil(-L) - 3;
   const raster = pow10(e + P);
   const anker = { n: floorDiv(2n * v + raster, 2n * raster), e };
-  aktuellerStrich = { anker, L, x0: x, weg: [[0, y - linieY]] };
+  aktuellerStrich = { anker, L, x0: x, weg: [[0, y - linieY]], farbe: stiftFarbe };
   striche.push(aktuellerStrich);
   knoepfePruefen();
   zeichnen();
@@ -782,6 +884,24 @@ function strichAbbrechen() {
     zeichnen();
   }
   aktuellerStrich = null;
+}
+// Tippen im Rechensprung-Werkzeug: erst die Startzahl, danach jedes Ziel
+function sprungTippen(x) {
+  const ziel = rasterWert(x);
+  if (!sprungStart) {
+    sprungStart = ziel;
+    zeichnen();
+    return;
+  }
+  const e = Math.min(sprungStart.e, ziel.e);
+  const unterschied = ziel.n * pow10(ziel.e - e) - sprungStart.n * pow10(sprungStart.e - e);
+  if (unterschied === 0n) return;
+  const betrag = unterschied < 0n ? -unterschied : unterschied;
+  const text = (unterschied < 0n ? MINUS : "+") + punktText({ n: betrag, e });
+  striche.push({ sprung: true, a: sprungStart, b: ziel, text, farbe: stiftFarbe });
+  sprungStart = ziel;
+  knoepfePruefen();
+  zeichnen();
 }
 function knoepfePruefen() {
   btnZurueck.disabled = striche.length === 0;
@@ -810,7 +930,7 @@ function neuerPunkt(x) {
 }
 let tipp = null;
 function tippStart(x, y) {
-  tipp = { x, y, punkt: laser || stiftModus ? null : punktBei(x, y), gezogen: false };
+  tipp = { x, y, punkt: laser || stiftModus || sprungModus ? null : punktBei(x, y), gezogen: false };
   if (stiftModus) strichStart(x, y);
 }
 function tippZug(x, y) {
@@ -837,6 +957,8 @@ function tippEnde() {
   if (!t || t.gezogen) return;
   if (laser) {
     laserSetzen(t.x, t.y);
+  } else if (sprungModus) {
+    sprungTippen(t.x);
   } else if (t.punkt) {
     t.punkt.offen = !t.punkt.offen;
     zeichnen();
@@ -980,18 +1102,54 @@ function stiftSetzen(an) {
   stiftModus = an;
   btnStift.setAttribute("aria-pressed", String(an));
 }
-// Laser, Stift und Punkt setzen schließen sich gegenseitig aus
+// Laser, Stift, Rechensprung und Punkt setzen schließen sich gegenseitig aus
 function werkzeug(name, an) {
   laserSchalten(name === "laser" && an);
   stiftSetzen(name === "stift" && an);
   punktModusSetzen(name === "punkt" && an);
+  sprungModus = name === "sprung" && an;
+  sprungStart = null;
+  btnSprung.setAttribute("aria-pressed", String(sprungModus));
+  elFarben.hidden = !stiftModus && !sprungModus;
   hinweisZeigen();
+  zeichnen();
 }
 btnLaser.addEventListener("click", () => werkzeug("laser", !laser));
 btnStift.addEventListener("click", () => werkzeug("stift", !stiftModus));
 btnPunkt.addEventListener("click", () => werkzeug("punkt", !punktModus));
+btnSprung.addEventListener("click", () => werkzeug("sprung", !sprungModus));
+for (const knopf of elFarben.querySelectorAll("button")) {
+  knopf.addEventListener("click", () => {
+    stiftFarbe = knopf.dataset.farbe;
+    for (const k of elFarben.querySelectorAll("button")) k.setAttribute("aria-pressed", String(k === knopf));
+    zeichnen();
+  });
+}
+btnZahlen.addEventListener("click", () => {
+  zahlenStufe = (zahlenStufe + 1) % 3;
+  btnZahlen.textContent = ["Zahlen: alle", "Zahlen: Anfang und Ende", "Zahlen: Anfang, Mitte, Ende"][zahlenStufe];
+  ansichtAktualisieren();
+  zeichnen();
+});
+
+function ansichtAktualisieren() {
+  elHauptOben.hidden = leisteAus;
+  elHauptUnten.hidden = leisteAus;
+  btnLeisteAn.hidden = !leisteAus;
+  elSchrittBox.hidden = zahlenStufe !== 0;
+}
+document.getElementById("leiste-aus").addEventListener("click", () => {
+  leisteAus = true;
+  ansichtAktualisieren();
+});
+btnLeisteAn.addEventListener("click", () => {
+  leisteAus = false;
+  ansichtAktualisieren();
+});
+
 btnZurueck.addEventListener("click", () => {
-  striche.pop();
+  const weg = striche.pop();
+  if (weg && weg.sprung && sprungModus) sprungStart = weg.a;
   knoepfePruefen();
   zeichnen();
 });
@@ -999,6 +1157,7 @@ btnLoeschen.addEventListener("click", () => {
   punkte = [];
   punktZaehler = 0;
   striche = [];
+  sprungStart = null;
   knoepfePruefen();
   zeichnen();
 });
