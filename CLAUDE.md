@@ -22,8 +22,8 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 
 ## Hosting und Veröffentlichen
 
-- Hauptadresse: GitHub Pages unter https://edutoolz.github.io/Zahlenstrahl/ (Branch `main`, Ordner `/`). Nach `git push` ist die Änderung in ein bis zwei Minuten online.
+- Hauptadresse: GitHub Pages unter https://edutoolz.github.io/zahlenstrahl/ (Branch `main`, Ordner `/`). Nach `git push` ist die Änderung in ein bis zwei Minuten online.
 - Zusätzlich gibt es das Artefakt auf claude.ai, privat, bis Joshua es dort teilt. Link und Slug stehen in `CLAUDE.local.md` (nicht im Repo, weil das Repo öffentlich ist). Es aktualisiert sich nicht von selbst, sondern muss bei Bedarf neu veröffentlicht werden.
-- GitHub: Repo `edutoolz/Zahlenstrahl` (öffentlich), Branch `main`, Remote `git@github-edutoolz:edutoolz/Zahlenstrahl.git`. Nach Änderungen committen und `git push`. Umgezogen von `klassestehnken-dev` am 2026-11-07.
+- GitHub: Repo `edutoolz/zahlenstrahl` (öffentlich), Branch `main`, Remote `git@github-edutoolz:edutoolz/zahlenstrahl.git`. Nach Änderungen committen und `git push`. Umgezogen von `klassestehnken-dev` am 2026-11-07.
 - Für Commits in diesem Repo ist die GitHub-noreply-Adresse eingestellt, damit keine private E-Mail-Adresse öffentlich wird.
 - Lokal testen: Vorschau `zahlenstrahl` aus `.claude/launch.json` (Port 8768).
