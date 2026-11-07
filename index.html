@@ -218,6 +218,7 @@ button:disabled {
     <strong id="schritt">1</strong>
   </div>
   <div class="schalter">
+    <button id="einheit" class="einzeln" type="button">Einheit ausblenden</button>
     <button id="zahlen" class="einzeln" type="button">Zahlen: alle</button>
     <button id="leiste-aus" class="einzeln" type="button">Knöpfe ausblenden</button>
   </div>
@@ -277,6 +278,7 @@ const btnSprung = document.getElementById("sprung");
 const btnZahlen = document.getElementById("zahlen");
 const elFarben = document.getElementById("farben");
 const elSchrittBox = document.getElementById("schritt-box");
+const btnEinheit = document.getElementById("einheit");
 const elHauptOben = document.getElementById("haupt-oben");
 const elHauptUnten = document.getElementById("haupt-unten");
 const btnLeisteAn = document.getElementById("leiste-an");
@@ -302,6 +304,7 @@ let stiftModus = false;
 let stiftFarbe = "#d91f1a";
 let sprungModus = false;
 let sprungStart = null;     // Startzahl des nächsten Rechensprungs
+let einheitAn = true;       // Anzeige „Von Strich zu Strich“, unabhängig vom Zahlen-Knopf
 let zahlenStufe = 0;        // 0 = alle Zahlen, 1 = Anfang und Ende, 2 = Anfang, Mitte und Ende
 let leisteAus = false;
 let striche = [];           // gezeichnete Linien, siehe strichStart
@@ -1132,11 +1135,16 @@ btnZahlen.addEventListener("click", () => {
   zeichnen();
 });
 
+btnEinheit.addEventListener("click", () => {
+  einheitAn = !einheitAn;
+  btnEinheit.textContent = einheitAn ? "Einheit ausblenden" : "Einheit einblenden";
+  ansichtAktualisieren();
+});
 function ansichtAktualisieren() {
   elHauptOben.hidden = leisteAus;
   elHauptUnten.hidden = leisteAus;
   btnLeisteAn.hidden = !leisteAus;
-  elSchrittBox.hidden = zahlenStufe !== 0;
+  elSchrittBox.hidden = !einheitAn;
 }
 document.getElementById("leiste-aus").addEventListener("click", () => {
   leisteAus = true;

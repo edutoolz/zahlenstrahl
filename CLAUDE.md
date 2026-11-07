@@ -17,7 +17,7 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 - Stift: Knopf an, dann zeichnet ein Finger oder Apple Pencil rote Linien. Linien hängen an ihrer Zahl (`strichStart`: Anker exakt, Weg in Pixeln) und strecken sich beim Zoomen nur waagerecht. Rückgängig nimmt die letzte Linie weg, „Alles löschen“ entfernt Linien und Punkte. Nicht gespeichert. Laser, Stift und Punkt setzen schließen sich gegenseitig aus (`werkzeug`).
 - Stiftfarben Rot, Blau, Grün: erscheinen, solange Stift oder Rechensprung an ist.
 - Rechensprung: Tippen auf Start, dann auf Ziel. Es entsteht ein Bogen mit Pfeil und Text wie +3, der nächste Sprung beginnt am Ziel. Eingerastet wie Punkte, gespeichert in `striche` (Rückgängig funktioniert also auch dafür).
-- Knopf Zahlen schaltet durch: alle, Anfang und Ende, Anfang Mitte Ende. Die Anzeige „Von Strich zu Strich“ ist dann aus, weil sie sonst die Lösung verrät.
+- Knopf Zahlen schaltet durch: alle, Anfang und Ende, Anfang Mitte Ende. Die Anzeige „Von Strich zu Strich“ hat einen eigenen Knopf (Einheit ausblenden/einblenden) und hängt nicht vom Zahlen-Knopf ab.
 - Knöpfe ausblenden: lässt nur einen kleinen Knopf „Knöpfe“ oben rechts stehen, Werkzeuge bleiben aktiv.
 
 ## Hosting und Veröffentlichen
