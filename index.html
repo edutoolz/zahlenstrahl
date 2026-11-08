@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" id="themenfarbe" content="#ffffff">
 <title>Zahlenstrahl</title>
 <meta name="apple-mobile-web-app-title" content="Zahlenstrahl">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -110,12 +108,6 @@ button {
   font: 700 17px/1 var(--font);
   cursor: pointer;
   touch-action: manipulation;
-  transition: transform 100ms ease-out, box-shadow 100ms ease-out;
-}
-/* Rückmeldung schon beim Drücken, nicht erst beim Loslassen: Knopf wird kurz kleiner und dunkler */
-button:active:not(:disabled) {
-  transform: scale(0.95);
-  box-shadow: inset 0 0 0 999px rgba(128, 128, 128, 0.22);
 }
 button:focus-visible {
   outline: 3px solid var(--fg);
@@ -941,9 +933,7 @@ function neuerPunkt(x) {
 }
 let tipp = null;
 function tippStart(x, y) {
-  const punkt = laser || stiftModus || sprungModus ? null : punktBei(x, y);
-  // versatz: wie weit der Finger neben dem Punkt angefasst hat, damit der Punkt beim Ziehen nicht zum Finger springt
-  tipp = { x, y, punkt, versatz: punkt ? punkt.x - x : 0, gezogen: false };
+  tipp = { x, y, punkt: laser || stiftModus || sprungModus ? null : punktBei(x, y), gezogen: false };
   if (stiftModus) strichStart(x, y);
 }
 function tippZug(x, y) {
@@ -959,7 +949,7 @@ function tippZug(x, y) {
   }
   if (Math.hypot(x - tipp.x, y - tipp.y) > 10) tipp.gezogen = true;
   if (tipp.gezogen && tipp.punkt) {
-    Object.assign(tipp.punkt, rasterWert(x + tipp.versatz));
+    Object.assign(tipp.punkt, rasterWert(x));
     zeichnen();
   }
 }
@@ -1027,8 +1017,6 @@ for (const typ of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(typ, e => e.preventDefault(), { passive: false });
 }
 document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
-// Ohne einen touchstart-Empfänger zeigt Safari auf dem iPad den gedrückten Zustand (:active) der Knöpfe nicht
-document.addEventListener("touchstart", () => {}, { passive: true });
 
 // Am Computer: Maus ziehen, Mausrad oder Trackpad
 let mausX = null;
@@ -1081,8 +1069,6 @@ function hintergrund(wert) {
   document.body.dataset.bg = wert;
   btnWeiss.setAttribute("aria-pressed", String(wert === "weiss"));
   btnSchwarz.setAttribute("aria-pressed", String(wert === "schwarz"));
-  // Statusleiste und Safari-Leiste bekommen dieselbe Farbe wie der Hintergrund
-  document.getElementById("themenfarbe").content = wert === "schwarz" ? "#000000" : "#ffffff";
   merken("hintergrund", wert);
   zeichnen();
 }

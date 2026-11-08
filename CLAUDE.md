@@ -19,8 +19,6 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 - Rechensprung: Tippen auf Start, dann auf Ziel. Es entsteht ein Bogen mit Pfeil und Text wie +3, der nächste Sprung beginnt am Ziel. Eingerastet wie Punkte, gespeichert in `striche` (Rückgängig funktioniert also auch dafür).
 - Knopf Zahlen schaltet durch: alle, Anfang und Ende, Anfang Mitte Ende. Die Anzeige „Von Strich zu Strich“ hat einen eigenen Knopf (Einheit ausblenden/einblenden) und hängt nicht vom Zahlen-Knopf ab.
 - Knöpfe ausblenden: lässt nur einen kleinen Knopf „Knöpfe“ oben rechts stehen, Werkzeuge bleiben aktiv.
-- iPad-Gefühl (Skill mobile-native): Knöpfe werden schon beim Drücken kleiner und dunkler (`button:active`, braucht den leeren `touchstart`-Empfänger auf `document`, sonst zeigt Safari das nicht). `theme-color` folgt dem Hintergrund (Weiß/Schwarz). Beim Ziehen eines Punkts zählt der Abstand zum Griff (`tipp.versatz`), der Punkt springt nicht zum Finger.
-- Zoom der Seite ist absichtlich gesperrt (`user-scalable=no`), weil der Strahl das Zoomen selbst macht.
 
 ## Hosting und Veröffentlichen
 
