@@ -152,6 +152,27 @@ button:disabled {
   border-radius: 50%;
 }
 .farben button[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--fg); }
+.zahlenraum { position: relative; }
+.zahlenraum-liste {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.zahlenraum-liste button {
+  min-height: 48px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.zahlenraum-liste button:hover { background: var(--chip); }
 #leiste-an {
   position: fixed;
   top: 12px;
@@ -219,7 +240,15 @@ button:disabled {
   </div>
   <div class="schalter">
     <button id="einheit" class="einzeln" type="button">Einheit ausblenden</button>
-    <button id="zahlen" class="einzeln" type="button">Zahlen: alle</button>
+    <div class="zahlenraum" id="zahlen-menu">
+      <button id="zahlen" class="einzeln" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zahlen-liste">Zahlen: alle ▾</button>
+      <div class="zahlenraum-liste" id="zahlen-liste" role="menu" hidden>
+        <button type="button" role="menuitem" data-stufe="0">Alle</button>
+        <button type="button" role="menuitem" data-stufe="1">Anfang und Ende</button>
+        <button type="button" role="menuitem" data-stufe="2">Anfang, Mitte, Ende</button>
+        <button type="button" role="menuitem" data-stufe="3">Zufällig (neu mischen)</button>
+      </div>
+    </div>
     <button id="leiste-aus" class="einzeln" type="button">Knöpfe ausblenden</button>
   </div>
   <div class="schalter ganz">
@@ -232,7 +261,18 @@ button:disabled {
       <button id="mehr" type="button">Mehr Striche</button>
     </div>
     <button id="minus" class="einzeln" type="button" aria-pressed="false">Minuszahlen</button>
-    <button id="start" class="einzeln" type="button">Zurück zu 0 bis 10</button>
+    <div class="zahlenraum" id="zahlenraum">
+      <button id="start" class="einzeln" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zahlenraum-liste">Zahlenraum ▾</button>
+      <div class="zahlenraum-liste" id="zahlenraum-liste" role="menu" hidden>
+        <button type="button" role="menuitem" data-bis="10">0 bis 10</button>
+        <button type="button" role="menuitem" data-bis="20">0 bis 20</button>
+        <button type="button" role="menuitem" data-bis="100">0 bis 100</button>
+        <button type="button" role="menuitem" data-bis="1000">0 bis 1 000</button>
+        <button type="button" role="menuitem" data-bis="10000">0 bis 10 000</button>
+        <button type="button" role="menuitem" data-bis="100000">0 bis 100 000</button>
+        <button type="button" role="menuitem" data-bis="1000000">0 bis 1 Million</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -305,7 +345,12 @@ let stiftFarbe = "#d91f1a";
 let sprungModus = false;
 let sprungStart = null;     // Startzahl des nächsten Rechensprungs
 let einheitAn = true;       // Anzeige „Von Strich zu Strich“, unabhängig vom Zahlen-Knopf
-let zahlenStufe = 0;        // 0 = alle Zahlen, 1 = Anfang und Ende, 2 = Anfang, Mitte und Ende
+let zahlenStufe = 0;        // 0 = alle Zahlen, 1 = Anfang und Ende, 2 = Anfang, Mitte und Ende, 3 = zufällig
+let zufallSamen = 1;        // ändert sich bei „neu mischen“
+let aufgedeckt = new Set(); // per Tippen aufgedeckte Zahlen (als Text)
+let verdeckteZahlen = [];   // ausgeblendete Zahlen im Bild, zum Antippen
+let linieLabelY = 0;
+let zufallsPunkte = [];     // Punkte über verdeckten Zahlen im Zufallsmodus
 let leisteAus = false;
 let striche = [];           // gezeichnete Linien, siehe strichStart
 let aktuellerStrich = null;
@@ -365,8 +410,9 @@ function zoomen(x, dL) {
   begrenzen();
   zeichnen();
 }
-function startansicht() {
-  L = Math.log10(W * (1 - 2 * RAND) / 10);
+function startansicht(bis = 10) {
+  if (!W) return;                      // Seite noch ohne Größe (z. B. unsichtbar geladen)
+  L = Math.log10(W * (1 - 2 * RAND) / bis);
   cN = 0n;
   P = 0;
   cN = pixelWert(W / 2 - W * RAND);
@@ -656,12 +702,40 @@ function malen() {
     }
   }
   let zuZeigen = zahlen;
-  if (zahlenStufe !== 0) {
+  verdeckteZahlen = [];
+  if (zahlenStufe === 3) {
+    // Zufall hängt an der Zahl selbst, deshalb bleibt die Auswahl beim Verschieben und Zoomen gleich
+    zuZeigen = zahlen.filter(z => zufallsZahl(z.text) < 0.67);
+    const imBild = zahlen.filter(z => z.a === 1 && z.x >= 20 && z.x <= W - 40);
+    if (imBild.length >= 2 && imBild.filter(z => zuZeigen.includes(z)).length < 2) {
+      zuZeigen.push(imBild[0], imBild[imBild.length - 1]);
+    }
+    // Mindestens eine Lücke, sonst gibt es nichts zu raten
+    if (imBild.length >= 3 && imBild.every(z => zuZeigen.includes(z))) {
+      const weg = imBild.reduce((a, b) => zufallsZahl(a.text) > zufallsZahl(b.text) ? a : b);
+      zuZeigen = zuZeigen.filter(z => z !== weg);
+    }
+    verdeckteZahlen = imBild.filter(z => !zuZeigen.includes(z));
+  } else if (zahlenStufe !== 0) {
     const imBild = zahlen.filter(z => z.a === 1 && z.x >= 20 && z.x <= W - 40);
     // Ungerade Anzahl, damit die Mitte genau zwischen Anfang und Ende liegt
-    if (imBild.length > 2 && imBild.length % 2 === 0) imBild.pop();
-    const ende = imBild.length - 1;
-    zuZeigen = imBild.filter((z, i) => i === 0 || i === ende || (zahlenStufe === 2 && i === ende / 2));
+    const auswahl = imBild.slice();
+    if (auswahl.length > 2 && auswahl.length % 2 === 0) auswahl.pop();
+    const ende = auswahl.length - 1;
+    zuZeigen = auswahl.filter((z, i) => i === 0 || i === ende || (zahlenStufe === 2 && i === ende / 2));
+    verdeckteZahlen = imBild.filter(z => !zuZeigen.includes(z));
+  }
+  // Im Zufallsmodus bekommt jede verdeckte Zahl einen roten Punkt mit Buchstaben, gezeichnet wie
+  // bei „Punkt setzen“ (siehe unten). Die Buchstaben gehen nach den gesetzten Punkten weiter.
+  zufallsPunkte = [];
+  for (const z of verdeckteZahlen) {
+    if (zahlenStufe === 3) {
+      const i = punktZaehler + zufallsPunkte.length;
+      const name = String.fromCharCode(65 + i % 26) + (i >= 26 ? Math.floor(i / 26) + 1 : "");
+      zufallsPunkte.push({ x: z.x, name, zahl: z.text, offen: aufgedeckt.has(z.text) });
+    } else if (aufgedeckt.has(z.text)) {
+      zuZeigen.push(z);
+    }
   }
   for (const z of zuZeigen) {
     ctx.globalAlpha = z.a;
@@ -669,6 +743,7 @@ function malen() {
     ctx.fillText(z.text, z.x, labelY);
   }
   ctx.globalAlpha = 1;
+  linieLabelY = labelY;
 
   const wertX = w => {
     let N, rest = 0;
@@ -733,12 +808,13 @@ function malen() {
     p.x = x;
     sichtbar.push(p);
   }
+  sichtbar.push(...zufallsPunkte);
   // Schilder nebeneinanderliegender Punkte stapeln sich, damit jedes lesbar bleibt
   sichtbar.sort((a, b) => a.x - b.x);
   const reihenEnde = [];
   for (const p of sichtbar) {
     const x = p.x;
-    const text = p.offen ? p.name + " = " + punktText(p) : p.name;
+    const text = p.offen ? p.name + " = " + (p.zahl ?? punktText(p)) : p.name;
     const pw = Math.max(ctx.measureText(text).width + 28, fs + 20);
     const ph = fs + 18;
     const px = klemme(x, pw / 2 + 8, W - pw / 2 - 8);
@@ -953,6 +1029,38 @@ function tippZug(x, y) {
     zeichnen();
   }
 }
+// Gleichmäßige Zufallszahl 0 bis 1, fest für jede Zahl und jede Mischung
+function zufallsZahl(text) {
+  let h = 2166136261 ^ zufallSamen;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  h ^= h >>> 15;
+  h = Math.imul(h, 2246822507);
+  h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
+// Tippen auf eine ausgeblendete Zahl deckt sie auf, nochmal Tippen verdeckt sie wieder
+function zahlAufdecken(x, y) {
+  let ziel = null;
+  for (const p of zufallsPunkte) {
+    const f = p.feld;
+    if (f && x >= f.x - 10 && x <= f.x + f.w + 10 && y >= f.y - 10 && y <= f.y + f.h + 10) ziel = p.zahl;
+  }
+  if (!ziel && y >= linieY - 40 && y <= linieLabelY + 60) {
+    let abstand = 40;
+    for (const z of verdeckteZahlen) {
+      const d = Math.abs(z.x - x);
+      if (d < abstand) { ziel = z.text; abstand = d; }
+    }
+  }
+  if (!ziel) return false;
+  if (aufgedeckt.has(ziel)) aufgedeckt.delete(ziel);
+  else aufgedeckt.add(ziel);
+  zeichnen();
+  return true;
+}
 function tippEnde() {
   const t = tipp;
   tipp = null;
@@ -967,6 +1075,8 @@ function tippEnde() {
     zeichnen();
   } else if (punktModus) {
     neuerPunkt(t.x);
+  } else if (!stiftModus) {
+    zahlAufdecken(t.x, t.y);
   }
 }
 let letzte = null;
@@ -1090,7 +1200,26 @@ btnMehr.addEventListener("click", () => dichteAendern(1));
 btnWeiss.addEventListener("click", () => hintergrund("weiss"));
 btnSchwarz.addEventListener("click", () => hintergrund("schwarz"));
 btnMinus.addEventListener("click", () => minuszahlen(!minusAn));
-btnStart.addEventListener("click", startansicht);
+// Zahlenraum-Menü: klappt beim Antippen auf, ein Eintrag zeigt 0 bis zu dieser Zahl
+const elZahlenraum = document.getElementById("zahlenraum");
+const elZahlenraumListe = document.getElementById("zahlenraum-liste");
+function zahlenraumMenu(auf) {
+  elZahlenraumListe.hidden = !auf;
+  btnStart.setAttribute("aria-expanded", String(auf));
+}
+btnStart.addEventListener("click", () => zahlenraumMenu(elZahlenraumListe.hidden));
+for (const knopf of elZahlenraumListe.querySelectorAll("[data-bis]")) {
+  knopf.addEventListener("click", () => {
+    startansicht(Number(knopf.dataset.bis));
+    zahlenraumMenu(false);
+  });
+}
+document.addEventListener("pointerdown", e => {
+  if (!elZahlenraum.contains(e.target)) zahlenraumMenu(false);
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") zahlenraumMenu(false);
+});
 
 function punktModusSetzen(an) {
   punktModus = an;
@@ -1128,11 +1257,29 @@ for (const knopf of elFarben.querySelectorAll("button")) {
     zeichnen();
   });
 }
-btnZahlen.addEventListener("click", () => {
-  zahlenStufe = (zahlenStufe + 1) % 3;
-  btnZahlen.textContent = ["Zahlen: alle", "Zahlen: Anfang und Ende", "Zahlen: Anfang, Mitte, Ende"][zahlenStufe];
-  ansichtAktualisieren();
-  zeichnen();
+const elZahlenMenu = document.getElementById("zahlen-menu");
+const elZahlenListe = document.getElementById("zahlen-liste");
+function zahlenMenu(auf) {
+  elZahlenListe.hidden = !auf;
+  btnZahlen.setAttribute("aria-expanded", String(auf));
+}
+btnZahlen.addEventListener("click", () => zahlenMenu(elZahlenListe.hidden));
+for (const knopf of elZahlenListe.querySelectorAll("[data-stufe]")) {
+  knopf.addEventListener("click", () => {
+    zahlenStufe = Number(knopf.dataset.stufe);
+    if (zahlenStufe === 3) zufallSamen = Math.floor(Math.random() * 1e9);
+    aufgedeckt = new Set();
+    btnZahlen.textContent = ["Zahlen: alle", "Zahlen: Anfang und Ende", "Zahlen: Anfang, Mitte, Ende", "Zahlen: zufällig"][zahlenStufe] + " ▾";
+    zahlenMenu(false);
+    ansichtAktualisieren();
+    zeichnen();
+  });
+}
+document.addEventListener("pointerdown", e => {
+  if (!elZahlenMenu.contains(e.target)) zahlenMenu(false);
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") zahlenMenu(false);
 });
 
 btnEinheit.addEventListener("click", () => {
