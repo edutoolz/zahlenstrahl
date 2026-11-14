@@ -235,6 +235,9 @@ button:disabled {
 .et-info[hidden]{display:none}
 .et-info p{margin:0;background:#fff;color:#000;border-radius:16px;padding:20px 26px;font:500 17px/1.6 system-ui,-apple-system,sans-serif;text-align:center;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .et-info a{color:#2D5DA8;font-weight:700}
+/* Stift als Symbol (in allen Tools gleich) */
+#stift{width:50px;padding:0;display:grid;place-items:center}
+#stift svg{width:24px;height:24px}
 </style>
 </head>
 <body data-bg="weiss">
@@ -296,7 +299,7 @@ button:disabled {
       <button type="button" data-farbe="#2f6bff" aria-label="Blau" aria-pressed="false"><span style="background:#2f6bff"></span></button>
       <button type="button" data-farbe="#12a150" aria-label="Grün" aria-pressed="false"><span style="background:#12a150"></span></button>
     </div>
-    <button id="stift" class="einzeln" type="button" aria-pressed="false">Stift</button>
+    <button id="stift" aria-label="Stift" title="Stift" class="einzeln" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/><path d="M14.5 5.5l3 3"/></svg></button>
     <button id="sprung-verdeckt" class="einzeln" type="button" aria-pressed="false" hidden>Sprungweite: sichtbar</button>
     <button id="sprung" class="einzeln" type="button" aria-pressed="false">Rechensprung</button>
     <button id="punkt" class="einzeln" type="button" aria-pressed="false">Punkt setzen</button>
