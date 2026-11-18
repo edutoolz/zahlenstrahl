@@ -234,8 +234,8 @@ button:disabled {
 .vonedu{position:absolute;left:0;right:0;bottom:3px;margin:0;text-align:center;font-size:11px;line-height:1.2;color:var(--muted);pointer-events:auto}
 .vonedu a{color:inherit}
 /* Stift als Symbol (in allen Tools gleich) */
-#stift,#laser{width:50px;padding:0;display:grid;place-items:center}
-#stift svg,#laser svg{width:24px;height:24px}
+#stift,#laser,#bg{width:50px;padding:0;display:grid;place-items:center}
+#stift svg,#laser svg,#bg svg{width:24px;height:24px}
 #laser circle{fill:#d91f1a;stroke:none}
 #laser[aria-pressed="true"] circle{fill:currentColor}
 </style>
@@ -262,10 +262,7 @@ button:disabled {
     <button id="leiste-aus" class="einzeln" type="button">Knöpfe ausblenden</button>
   </div>
   <div class="schalter ganz">
-    <div class="gruppe" role="group" aria-label="Hintergrund">
-      <button id="bg-weiss" type="button" aria-pressed="true">Weiß</button>
-      <button id="bg-schwarz" type="button" aria-pressed="false">Schwarz</button>
-    </div>
+    <button id="bg" class="einzeln" type="button" aria-label="Hintergrund Weiß oder Schwarz" title="Hintergrund Weiß oder Schwarz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor"/></svg></button>
     <div class="gruppe" role="group" aria-label="Anzahl der Striche und Zahlen">
       <button id="weniger" type="button">Weniger Striche</button>
       <button id="mehr" type="button">Mehr Striche</button>
@@ -318,8 +315,7 @@ const ctx = canvas.getContext("2d");
 const elSchritt = document.getElementById("schritt");
 const elMitte = document.getElementById("mitte");
 const elHinweis = document.getElementById("hinweis");
-const btnWeiss = document.getElementById("bg-weiss");
-const btnSchwarz = document.getElementById("bg-schwarz");
+const btnBg = document.getElementById("bg");
 const btnMinus = document.getElementById("minus");
 const btnWeniger = document.getElementById("weniger");
 const btnMehr = document.getElementById("mehr");
@@ -352,6 +348,8 @@ let linieY = 0;
 let aktE = 0, aktM = 1;     // aktueller Abstand der sichtbaren Striche: aktM * 10^aktE
 let punkte = [];            // gesetzte Punkte: Wert n * 10^e, exakt wie die Bildmitte
 let punktZaehler = 0;
+let aktionNr = 0;           // fortlaufende Nummer für Striche, Sprünge und Punkte: Rückgängig nimmt immer das Neueste
+let startNr = null;         // Nummer eines allein gesetzten Startpunkts beim Rechensprung (null = gehört zu einem Sprung)
 let punktModus = false;
 let stiftModus = false;
 let stiftFarbe = "#d91f1a";
@@ -1077,7 +1075,7 @@ function strichStart(x, y) {
   const e = Math.ceil(-L) - 3;
   const raster = pow10(e + P);
   const anker = { n: floorDiv(2n * v + raster, 2n * raster), e };
-  aktuellerStrich = { anker, L, x0: x, weg: [[0, y - linieY]], farbe: stiftFarbe };
+  aktuellerStrich = { anker, L, x0: x, weg: [[0, y - linieY]], farbe: stiftFarbe, nr: ++aktionNr };
   striche.push(aktuellerStrich);
   knoepfePruefen();
   zeichnen();
@@ -1113,18 +1111,21 @@ function sprungTippen(x) {
   const ziel = rasterWert(x);
   if (!sprungStart) {
     sprungStart = ziel;
+    startNr = ++aktionNr;
+    knoepfePruefen();
     zeichnen();
     return;
   }
   const text = sprungText(sprungStart, ziel);
   if (!text) return;
-  striche.push({ sprung: true, a: sprungStart, b: ziel, text, farbe: stiftFarbe, verdeckt: sprungVerdeckt, offen: false });
+  striche.push({ sprung: true, a: sprungStart, b: ziel, text, farbe: stiftFarbe, verdeckt: sprungVerdeckt, offen: false, nr: ++aktionNr });
   sprungStart = ziel;
+  startNr = null;
   knoepfePruefen();
   zeichnen();
 }
 function knoepfePruefen() {
-  btnZurueck.disabled = striche.length === 0;
+  btnZurueck.disabled = striche.length === 0 && punkte.length === 0 && !(sprungModus && sprungStart);
   btnLoeschen.disabled = striche.length === 0 && punkte.length === 0;
 }
 function laserSetzen(x, y) {
@@ -1144,7 +1145,7 @@ function punktBei(x, y) {
 function neuerPunkt(x) {
   const name = String.fromCharCode(65 + punktZaehler % 26);
   punktZaehler++;
-  punkte.push({ ...rasterWert(x), name, offen: false, x: null });
+  punkte.push({ ...rasterWert(x), name, offen: false, x: null, nr: ++aktionNr });
   knoepfePruefen();
   zeichnen();
 }
@@ -1371,8 +1372,6 @@ function lesen(name) {
 }
 function hintergrund(wert) {
   document.body.dataset.bg = wert;
-  btnWeiss.setAttribute("aria-pressed", String(wert === "weiss"));
-  btnSchwarz.setAttribute("aria-pressed", String(wert === "schwarz"));
   merken("hintergrund", wert);
   zeichnen();
 }
@@ -1391,8 +1390,7 @@ function dichteAendern(schritt) {
 }
 btnWeniger.addEventListener("click", () => dichteAendern(-1));
 btnMehr.addEventListener("click", () => dichteAendern(1));
-btnWeiss.addEventListener("click", () => hintergrund("weiss"));
-btnSchwarz.addEventListener("click", () => hintergrund("schwarz"));
+btnBg.addEventListener("click", () => hintergrund(document.body.dataset.bg === "schwarz" ? "weiss" : "schwarz"));
 btnMinus.addEventListener("click", () => minuszahlen(!minusAn));
 // Zahlenraum-Menü: klappt beim Antippen auf, ein Eintrag zeigt 0 bis zu dieser Zahl
 const elZahlenraum = document.getElementById("zahlenraum");
@@ -1435,7 +1433,9 @@ function werkzeug(name, an) {
   punktModusSetzen(name === "punkt" && an);
   sprungModus = name === "sprung" && an;
   sprungStart = null;
+  startNr = null;
   sprungVorschau = null;
+  knoepfePruefen();
   btnSprung.setAttribute("aria-pressed", String(sprungModus));
   elFarben.hidden = !stiftModus && !sprungModus;
   btnSprungVerdeckt.hidden = !sprungModus;
@@ -1504,9 +1504,31 @@ btnLeisteAn.addEventListener("click", () => {
   ansichtAktualisieren();
 });
 
+// Rückgängig nimmt das Neueste weg: Linie, Sprung, gesetzten Punkt oder zuletzt den Startpunkt des Rechensprungs
 btnZurueck.addEventListener("click", () => {
-  const weg = striche.pop();
-  if (weg && weg.sprung && sprungModus) sprungStart = weg.a;
+  const strich = striche[striche.length - 1];
+  const punkt = punkte[punkte.length - 1];
+  const nrS = strich ? strich.nr || 0 : -1;
+  const nrP = punkt ? punkt.nr || 0 : -1;
+  const nrStart = sprungModus && sprungStart && startNr !== null ? startNr : -1;
+  if (nrStart > nrS && nrStart > nrP) {
+    sprungStart = null;
+    startNr = null;
+  } else if (nrP > nrS) {
+    punkte.pop();
+    punktZaehler = Math.max(0, punktZaehler - 1);
+  } else if (strich) {
+    striche.pop();
+    if (strich.sprung && sprungModus) {
+      sprungStart = strich.a;
+      // Endet der Sprung davor genau hier, gehört der Start zu ihm, sonst ist er ein eigener Schritt
+      const davor = striche[striche.length - 1];
+      startNr = davor && davor.sprung && !sprungText(davor.b, strich.a) ? null : strich.nr;
+    }
+  } else if (sprungModus && sprungStart) {
+    sprungStart = null;
+    startNr = null;
+  }
   knoepfePruefen();
   zeichnen();
 });
@@ -1515,6 +1537,7 @@ btnLoeschen.addEventListener("click", () => {
   punktZaehler = 0;
   striche = [];
   sprungStart = null;
+  startNr = null;
   knoepfePruefen();
   zeichnen();
 });
