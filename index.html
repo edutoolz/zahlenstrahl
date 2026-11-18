@@ -236,7 +236,7 @@ button:disabled {
 /* Stift als Symbol (in allen Tools gleich) */
 #stift,#laser{width:50px;padding:0;display:grid;place-items:center}
 #stift svg,#laser svg{width:24px;height:24px}
-#laser circle{fill:#d91f1a}
+#laser circle{fill:#d91f1a;stroke:none}
 #laser[aria-pressed="true"] circle{fill:currentColor}
 </style>
 </head>
@@ -292,7 +292,7 @@ button:disabled {
 <div class="unten" id="haupt-unten">
   <p id="hinweis"></p>
   <div class="punktknoepfe">
-    <button id="laser" aria-label="Laserpointer" title="Laserpointer" class="einzeln" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 18.6l7-7 2.8 2.8-7 7Z"/><path d="M12.8 11.2l3.4-3.4" stroke-dasharray="1.6 2.2"/><circle cx="18.6" cy="5.4" r="1.9" fill="currentColor" stroke="none"/><path d="M18.6 1.2v.8M22.8 5.4H22M21.6 2.4l-.6.6"/></svg></button>
+    <button id="laser" aria-label="Laserpointer" title="Laserpointer" class="einzeln" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg></button>
     <div class="farben" id="farben" role="group" aria-label="Stiftfarbe" hidden>
       <button type="button" data-farbe="#d91f1a" aria-label="Rot" aria-pressed="true"><span style="background:#d91f1a"></span></button>
       <button type="button" data-farbe="#2f6bff" aria-label="Blau" aria-pressed="false"><span style="background:#2f6bff"></span></button>
