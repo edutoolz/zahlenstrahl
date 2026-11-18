@@ -32,7 +32,5 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 ## Offen (Stand 18.11.2026)
 
 - **Auf dem iPad testen** (Joshua hatte sein iPad nicht da): Rechensprung mit Startring und Vorschau beim Halten (auch mit „?“), Laserpointer-Symbol, Fußzeile.
-- **Ruckeln/Verschwimmen beim Verschieben auf dem iPad** (Joshua: läuft flüssig, aber leichtes Ruckeln, Striche wirken beim Scrollen kurz verschwommen). Erst nach dem iPad-Test angehen, Joshua entscheidet dann. Vermutete Ursachen, noch nicht gebaut:
-  1. Striche liegen auf Bruchteil-Pixeln (`xVon()` in `malen()`), wechseln beim Verschieben zwischen scharf und verwaschen → x der Striche auf Gerätepixel runden (`Math.round(x * DPR) / DPR`, bei ungerader Linienbreite + 0,5).
-  2. Verschieben folgt direkt den Touch-Ereignissen (`touchmove` → `mitteVersetzen`), die nicht im 120-Hz-Bildtakt kommen → Bewegung pro Bild (in `malen()`/rAF) gleichmäßig verteilen.
-  3. Optional: Nachgleiten (Schwung) beim Loslassen.
+- **Ruckeln/Verschwimmen beim Verschieben (Zweig `fluessiger`, NICHT auf main, nicht live):** Striche und Zahlen auf Gerätepixel gesetzt, Zwei-Finger-Verschieben wird gesammelt und Bild für Bild abgearbeitet (`offenDx`, `bewegungTick`), Nachgleiten beim Loslassen (`schwung`, stoppt bei 0 und beim nächsten Antippen). Testfassung: https://edutoolz.de/tools/zahlenstrahl-test/ (noindex). Wenn Joshua auf dem iPad zufrieden ist: `fluessiger` in `main` mergen, pushen, `index.html` nach `/tools/zahlenstrahl/` laden, Testordner löschen. Sonst: Zweig und Testordner löschen.
+- **Sicherung:** Tag `stand-2026-11-18` = Stand, mit dem Joshua zufrieden ist (zurück mit `git checkout stand-2026-11-18 -- index.html`).
