@@ -422,9 +422,6 @@ function verschieben(dx) {
 /* Verschieben mit zwei Fingern: Die Finger melden sich nicht genau im Bildtakt des iPads (bis 120 Bilder/s).
    Deshalb wird die Bewegung gesammelt (offenDx) und Bild für Bild gleichmäßig abgearbeitet.
    Beim Loslassen gleitet der Strahl mit dem Schwung der Finger noch etwas weiter (wie Listen auf dem iPad). */
-/* MESSSEITE (nur Testfassung): Schalter zum Vergleichen und Zähler für Bilder pro Sekunde */
-const MESS = { raster: true, glatt: true, schwung: true, auto: 0 };
-let messTouch = 0;
 let offenDx = 0;          // Fingerweg in Pixeln, der noch nicht gezeigt ist
 let schwung = 0;          // Pixel pro Millisekunde
 let tickGeplant = false, tickZeit = 0;
@@ -435,7 +432,7 @@ function bewegungTick(jetzt) {
   tickZeit = jetzt;
   let dx = 0;
   if (offenDx) {
-    dx = !MESS.glatt || Math.abs(offenDx) < 0.5 ? offenDx : offenDx * 0.6;
+    dx = Math.abs(offenDx) < 0.5 ? offenDx : offenDx * 0.6;
     offenDx -= dx;
   }
   if (schwung) {
@@ -443,9 +440,8 @@ function bewegungTick(jetzt) {
     schwung *= Math.exp(-dt / 325);
     if (Math.abs(schwung) < 0.02) schwung = 0;
   }
-  if (MESS.auto) dx -= MESS.auto * dt;
   if (dx && verschieben(dx)) schwung = 0;   // am Anfang des Strahls (bei 0) hört der Schwung auf
-  if (offenDx || schwung || MESS.auto) tickPlanen();
+  if (offenDx || schwung) tickPlanen();
   else tickZeit = 0;
 }
 function tickPlanen() {
@@ -462,7 +458,6 @@ function bewegungStopp() {
 function schwungStarten(t) {
   const neu = fingerVerlauf.filter(v => t - v.t <= 100);
   fingerVerlauf.length = 0;
-  if (!MESS.schwung) return;
   if (neu.length < 2 || t - neu[neu.length - 1].t > 50) return;
   const dauer = Math.max(16, t - neu[0].t);
   const v = neu.reduce((a, b) => a + b.dx, 0) / dauer;
@@ -775,8 +770,8 @@ function malen() {
     const h = n === 0n ? 64 : klemme(12 + 16 * Math.log10(X / 24), 12, 56);
     ctx.globalAlpha = alpha;
     // Strich genau auf Gerätepixel: sonst wechselt er beim Verschieben zwischen scharf und verwaschen
-    const breite = MESS.raster ? Math.max(1, Math.round((n === 0n ? 4 : 2.5) * DPR)) : (n === 0n ? 4 : 2.5) * DPR;
-    const xs = MESS.raster ? (Math.round(x * DPR - breite / 2) + breite / 2) / DPR : x;
+    const breite = Math.max(1, Math.round((n === 0n ? 4 : 2.5) * DPR));
+    const xs = (Math.round(x * DPR - breite / 2) + breite / 2) / DPR;
     ctx.lineWidth = breite / DPR;
     ctx.beginPath();
     ctx.moveTo(xs, y - h / 2);
@@ -847,7 +842,7 @@ function malen() {
   for (const z of zuZeigen) {
     ctx.globalAlpha = z.a;
     ctx.font = schrift(fs, z.fett);
-    ctx.fillText(z.text, MESS.raster ? Math.round(z.x * DPR) / DPR : z.x, labelY);
+    ctx.fillText(z.text, Math.round(z.x * DPR) / DPR, labelY);
   }
   ctx.globalAlpha = 1;
   linieLabelY = labelY;
@@ -1305,7 +1300,6 @@ canvas.addEventListener("touchmove", e => {
   const jetzt = fingerLage(e);
   const dx = jetzt.x - letzte.x;
   offenDx += dx;
-  messTouch++;
   fingerVerlauf.push({ t: e.timeStamp, dx });
   while (fingerVerlauf.length && e.timeStamp - fingerVerlauf[0].t > 150) fingerVerlauf.shift();
   zoomen(jetzt.x, Math.log10(jetzt.abstand / letzte.abstand));
@@ -1532,43 +1526,6 @@ new ResizeObserver(groesse).observe(document.documentElement);
 groesse();
 hintergrund(lesen("hintergrund") === "schwarz" ? "schwarz" : "weiss");
 minuszahlen(lesen("minus") === "an");
-</script>
-<div id="mess" style="position:fixed;left:12px;top:130px;z-index:50;background:rgba(255,255,255,.95);border:1px solid #ccc;border-radius:12px;padding:10px 12px;font:600 15px/1.3 system-ui,-apple-system,sans-serif;color:#000;display:grid;gap:6px;max-width:440px">
-  <div>Messseite (nur Test)</div>
-  <div id="mess-fps" style="font-size:18px">Bilder/s: …</div>
-  <div id="mess-touch" style="font-weight:400">Finger-Meldungen/s: –</div>
-  <label><input type="checkbox" data-m="raster" checked> Striche auf ganze Pixel</label>
-  <label><input type="checkbox" data-m="glatt" checked> Bewegung glätten</label>
-  <label><input type="checkbox" data-m="schwung" checked> Nachgleiten</label>
-  <div style="display:flex;gap:6px;flex-wrap:wrap">
-    <button type="button" data-auto="0.12" style="font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #bbb;background:#eee;color:#000">Autofahrt langsam</button>
-    <button type="button" data-auto="0.5" style="font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #bbb;background:#eee;color:#000">schnell</button>
-    <button type="button" data-auto="0" style="font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #bbb;background:#eee;color:#000">Stopp</button>
-  </div>
-</div>
-<script>
-(() => {
-  const fpsEl = document.getElementById("mess-fps"), tEl = document.getElementById("mess-touch");
-  let n = 0, t0 = performance.now(), min = 1e9, last = t0;
-  const loop = jetzt => {
-    n++;
-    min = Math.min(min, 1000 / Math.max(1, jetzt - last));
-    last = jetzt;
-    if (jetzt - t0 >= 1000) {
-      fpsEl.textContent = "Bilder/s: " + Math.round(n * 1000 / (jetzt - t0)) + " (langsamstes Bild: " + Math.round(min) + ")";
-      tEl.textContent = "Finger-Meldungen/s: " + (messTouch ? messTouch : "–");
-      n = 0; t0 = jetzt; min = 1e9; messTouch = 0;
-    }
-    requestAnimationFrame(loop);
-  };
-  requestAnimationFrame(loop);
-  document.querySelectorAll("#mess [data-m]").forEach(c => c.addEventListener("change", () => { MESS[c.dataset.m] = c.checked; zeichnen(); }));
-  document.querySelectorAll("#mess [data-auto]").forEach(b => b.addEventListener("click", () => {
-    MESS.auto = Number(b.dataset.auto);
-    tickZeit = 0;
-    tickPlanen();
-  }));
-})();
 </script>
 </body>
 </html>
