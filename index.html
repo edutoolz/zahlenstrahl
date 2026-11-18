@@ -230,11 +230,9 @@ button:disabled {
   color: #ffffff;
 }
 [hidden] { display: none !important; }
-.et-i{width:46px;padding:0;font-family:Georgia,serif;font-style:italic}
-.et-info{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
-.et-info[hidden]{display:none}
-.et-info p{margin:0;background:#fff;color:#000;border-radius:16px;padding:20px 26px;font:500 17px/1.6 system-ui,-apple-system,sans-serif;text-align:center;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.et-info a{color:#2D5DA8;font-weight:700}
+/* Kleine Zeile ganz unten: Hinweis auf EduToolz, Impressum, Datenschutz */
+.vonedu{position:absolute;left:0;right:0;bottom:3px;margin:0;text-align:center;font-size:11px;line-height:1.2;color:var(--muted);pointer-events:auto}
+.vonedu a{color:inherit}
 /* Stift als Symbol (in allen Tools gleich) */
 #stift,#laser{width:50px;padding:0;display:grid;place-items:center}
 #stift svg,#laser svg{width:24px;height:24px}
@@ -262,7 +260,6 @@ button:disabled {
       </div>
     </div>
     <button id="leiste-aus" class="einzeln" type="button">Knöpfe ausblenden</button>
-    <button id="et-i" class="einzeln et-i" type="button" aria-label="Über dieses Tool, Impressum, Datenschutz">i</button>
   </div>
   <div class="schalter ganz">
     <div class="gruppe" role="group" aria-label="Hintergrund">
@@ -308,6 +305,7 @@ button:disabled {
     <button id="zurueck" class="einzeln" type="button" disabled>Rückgängig</button>
     <button id="loeschen" class="einzeln" type="button" disabled>Alles löschen</button>
   </div>
+  <p class="vonedu">Ein kostenloses Tool von <a href="https://edutoolz.de/tools/">EduToolz</a> · <a href="https://edutoolz.de/impressum/">Impressum</a> · <a href="https://edutoolz.de/datenschutz/">Datenschutz</a></p>
 </div>
 
 <script>
@@ -1468,7 +1466,5 @@ groesse();
 hintergrund(lesen("hintergrund") === "schwarz" ? "schwarz" : "weiss");
 minuszahlen(lesen("minus") === "an");
 </script>
-<div class="et-info" id="et-info" hidden><p>Ein kostenloses Tool von <a href="https://edutoolz.de/tools/">EduToolz</a><br><a href="https://edutoolz.de/impressum/">Impressum</a> · <a href="https://edutoolz.de/datenschutz/">Datenschutz</a></p></div>
-<script>(()=>{const f=document.getElementById('et-info');document.getElementById('et-i').onclick=()=>f.hidden=false;f.onclick=e=>{if(e.target===f)f.hidden=true};})();</script>
 </body>
 </html>
