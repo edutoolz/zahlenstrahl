@@ -236,8 +236,10 @@ button:disabled {
 .et-info p{margin:0;background:#fff;color:#000;border-radius:16px;padding:20px 26px;font:500 17px/1.6 system-ui,-apple-system,sans-serif;text-align:center;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .et-info a{color:#2D5DA8;font-weight:700}
 /* Stift als Symbol (in allen Tools gleich) */
-#stift{width:50px;padding:0;display:grid;place-items:center}
-#stift svg{width:24px;height:24px}
+#stift,#laser{width:50px;padding:0;display:grid;place-items:center}
+#stift svg,#laser svg{width:24px;height:24px}
+#laser circle{fill:#d91f1a}
+#laser[aria-pressed="true"] circle{fill:currentColor}
 </style>
 </head>
 <body data-bg="weiss">
@@ -293,7 +295,7 @@ button:disabled {
 <div class="unten" id="haupt-unten">
   <p id="hinweis"></p>
   <div class="punktknoepfe">
-    <button id="laser" class="einzeln" type="button" aria-pressed="false">Laserpointer</button>
+    <button id="laser" aria-label="Laserpointer" title="Laserpointer" class="einzeln" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 18.6l7-7 2.8 2.8-7 7Z"/><path d="M12.8 11.2l3.4-3.4" stroke-dasharray="1.6 2.2"/><circle cx="18.6" cy="5.4" r="1.9" fill="currentColor" stroke="none"/><path d="M18.6 1.2v.8M22.8 5.4H22M21.6 2.4l-.6.6"/></svg></button>
     <div class="farben" id="farben" role="group" aria-label="Stiftfarbe" hidden>
       <button type="button" data-farbe="#d91f1a" aria-label="Rot" aria-pressed="true"><span style="background:#d91f1a"></span></button>
       <button type="button" data-farbe="#2f6bff" aria-label="Blau" aria-pressed="false"><span style="background:#2f6bff"></span></button>
@@ -358,6 +360,7 @@ let stiftFarbe = "#d91f1a";
 let sprungModus = false;
 let sprungVerdeckt = false;   // neue Sprünge zeigen erst ein „?“, Antippen deckt die Sprungweite auf
 let sprungStart = null;     // Startzahl des nächsten Rechensprungs
+let sprungVorschau = null;  // x des Fingers: zeigt den Sprung (bzw. den Start), bevor er losgelassen wird
 let einheitAn = true;       // Anzeige „Von Strich zu Strich“, unabhängig vom Zahlen-Knopf
 let zahlenStufe = 0;        // 0 = alle Zahlen, 1 = Anfang und Ende, 2 = Anfang, Mitte und Ende, 3 = zufällig
 let zufallSamen = 1;        // ändert sich bei „neu mischen“
@@ -835,11 +838,42 @@ function malen() {
     ctx.stroke();
   }
   ctx.lineCap = "butt";
-  if (sprungModus && sprungStart) {
-    ctx.fillStyle = stiftFarbe;
-    ctx.beginPath();
-    ctx.arc(wertX(sprungStart), y, 7, 0, Math.PI * 2);
-    ctx.fill();
+  if (sprungModus) {
+    // Hier beginnt der nächste Sprung: deutlicher Ring mit Punkt
+    const startRing = (x, alpha) => {
+      if (!Number.isFinite(x)) return;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = bg;
+      ctx.strokeStyle = stiftFarbe;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = stiftFarbe;
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    };
+    if (sprungStart) startRing(wertX(sprungStart), 1);
+    // Vorschau unter dem Finger: erst beim Loslassen wird der Sprung gesetzt
+    if (sprungVorschau !== null) {
+      const ziel = rasterWert(sprungVorschau);
+      const xz = wertX(ziel);
+      if (!sprungStart) {
+        startRing(xz, 0.5);
+      } else {
+        const st = sprungText(sprungStart, ziel);
+        if (st) {
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = stiftFarbe;
+          ctx.fillStyle = stiftFarbe;
+          sprungMalen({ text: st, verdeckt: false }, wertX(sprungStart), xz, y, fs);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
   }
 
   // Gesetzte Punkte: erst nur der Buchstabe, nach dem Antippen auch die Zahl
@@ -952,7 +986,8 @@ function hinweisZeigen() {
   if (laser) {
     elHinweis.textContent = "Bewege einen Finger über den Bildschirm. Der Laserpunkt folgt ihm.";
   } else if (sprungModus) {
-    elHinweis.textContent = "Tippe auf die Startzahl, dann auf das Ziel. Der nächste Sprung beginnt am Ziel."
+    elHinweis.textContent = "Tippe auf die Startzahl, dann auf das Ziel. Der Ring zeigt, wo der nächste Sprung beginnt."
+      + " Lass den Finger liegen und schiebe ihn, bis der Sprung stimmt."
       + (sprungVerdeckt ? " Tippe auf ein ?, um die Sprungweite zu zeigen." : "");
   } else if (stiftModus) {
     elHinweis.textContent = "Zeichne mit einem Finger oder dem Apple Pencil. Mit zwei Fingern geht Zoomen weiter.";
@@ -1013,6 +1048,14 @@ function strichAbbrechen() {
   }
   aktuellerStrich = null;
 }
+// Text eines Sprungs wie +3 oder −0,5 (null, wenn Start = Ziel)
+function sprungText(a, b) {
+  const e = Math.min(a.e, b.e);
+  const unterschied = b.n * pow10(b.e - e) - a.n * pow10(a.e - e);
+  if (unterschied === 0n) return null;
+  const betrag = unterschied < 0n ? -unterschied : unterschied;
+  return (unterschied < 0n ? MINUS : "+") + punktText({ n: betrag, e });
+}
 // Tippen im Rechensprung-Werkzeug: erst die Startzahl, danach jedes Ziel
 function sprungTippen(x) {
   const ziel = rasterWert(x);
@@ -1021,11 +1064,8 @@ function sprungTippen(x) {
     zeichnen();
     return;
   }
-  const e = Math.min(sprungStart.e, ziel.e);
-  const unterschied = ziel.n * pow10(ziel.e - e) - sprungStart.n * pow10(sprungStart.e - e);
-  if (unterschied === 0n) return;
-  const betrag = unterschied < 0n ? -unterschied : unterschied;
-  const text = (unterschied < 0n ? MINUS : "+") + punktText({ n: betrag, e });
+  const text = sprungText(sprungStart, ziel);
+  if (!text) return;
   striche.push({ sprung: true, a: sprungStart, b: ziel, text, farbe: stiftFarbe, verdeckt: sprungVerdeckt, offen: false });
   sprungStart = ziel;
   knoepfePruefen();
@@ -1057,8 +1097,13 @@ function neuerPunkt(x) {
   zeichnen();
 }
 let tipp = null;
-function tippStart(x, y) {
-  tipp = { x, y, punkt: laser || stiftModus || sprungModus ? null : punktBei(x, y), gezogen: false };
+function tippStart(x, y, finger) {
+  tipp = { x, y, punkt: laser || stiftModus || sprungModus ? null : punktBei(x, y), gezogen: false, finger };
+  if (sprungModus && finger) {
+    tipp.sx = x;
+    sprungVorschau = x;
+    zeichnen();
+  }
   if (stiftModus) strichStart(x, y);
 }
 function tippZug(x, y) {
@@ -1070,6 +1115,13 @@ function tippZug(x, y) {
   if (laser) {
     tipp.gezogen = true;
     laserSetzen(x, y);
+    return;
+  }
+  if (sprungModus && tipp.finger) {
+    tipp.sx = x;
+    if (Math.hypot(x - tipp.x, y - tipp.y) > 10) tipp.weg = true;
+    sprungVorschau = x;
+    zeichnen();
     return;
   }
   if (Math.hypot(x - tipp.x, y - tipp.y) > 10) tipp.gezogen = true;
@@ -1123,6 +1175,17 @@ function tippEnde() {
   const t = tipp;
   tipp = null;
   aktuellerStrich = null;
+  if (t && t.finger && sprungModus) {
+    sprungVorschau = null;
+    const schild = t.weg ? null : sprungSchildBei(t.x, t.y);
+    if (schild) {
+      schild.offen = !schild.offen;
+      zeichnen();
+    } else {
+      sprungTippen(t.sx);
+    }
+    return;
+  }
   if (!t || t.gezogen) return;
   const schild = laser || stiftModus ? null : sprungSchildBei(t.x, t.y);
   if (schild) {
@@ -1156,10 +1219,11 @@ function fingerNeu(e) {
 canvas.addEventListener("touchstart", e => {
   fingerNeu(e);
   if (e.touches.length === 1) {
-    tippStart(e.touches[0].clientX, e.touches[0].clientY);
+    tippStart(e.touches[0].clientX, e.touches[0].clientY, true);
   } else {
     tipp = null;
     strichAbbrechen();
+    if (sprungVorschau !== null) { sprungVorschau = null; zeichnen(); }
   }
 }, { passive: false });
 canvas.addEventListener("touchend", e => {
@@ -1170,6 +1234,7 @@ canvas.addEventListener("touchcancel", e => {
   fingerNeu(e);
   tipp = null;
   aktuellerStrich = null;
+  sprungVorschau = null;
 }, { passive: false });
 canvas.addEventListener("touchmove", e => {
   e.preventDefault();
@@ -1200,7 +1265,11 @@ canvas.addEventListener("pointerdown", e => {
   canvas.classList.add("zieht");
 });
 canvas.addEventListener("pointermove", e => {
-  if (e.pointerType === "mouse") tippZug(e.clientX, e.clientY);
+  if (e.pointerType === "mouse") {
+    tippZug(e.clientX, e.clientY);
+    const vorschau = sprungModus && mausX === null ? e.clientX : null;
+    if (vorschau !== sprungVorschau) { sprungVorschau = vorschau; zeichnen(); }
+  }
   if (mausX === null) return;
   verschieben(e.clientX - mausX);
   mausX = e.clientX;
@@ -1213,6 +1282,9 @@ function mausLos() {
 canvas.addEventListener("pointerup", e => {
   if (e.pointerType === "mouse") tippEnde();
   mausLos();
+});
+canvas.addEventListener("pointerleave", e => {
+  if (e.pointerType === "mouse" && sprungVorschau !== null) { sprungVorschau = null; zeichnen(); }
 });
 canvas.addEventListener("pointercancel", () => {
   if (mausX !== null) tipp = null;
@@ -1303,6 +1375,7 @@ function werkzeug(name, an) {
   punktModusSetzen(name === "punkt" && an);
   sprungModus = name === "sprung" && an;
   sprungStart = null;
+  sprungVorschau = null;
   btnSprung.setAttribute("aria-pressed", String(sprungModus));
   elFarben.hidden = !stiftModus && !sprungModus;
   btnSprungVerdeckt.hidden = !sprungModus;
