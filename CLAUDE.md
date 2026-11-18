@@ -29,9 +29,14 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 - Für Commits in diesem Repo ist die GitHub-noreply-Adresse eingestellt, damit keine private E-Mail-Adresse öffentlich wird.
 - Lokal testen: Vorschau `zahlenstrahl` aus `.claude/launch.json` (Port 8768).
 
-## Offen (Stand 18.11.2026)
+## Flüssiges Verschieben (seit 18.11.2026)
 
-- **Auf dem iPad testen** (Joshua hatte sein iPad nicht da): Rechensprung mit Startring und Vorschau beim Halten (auch mit „?“), Laserpointer-Symbol, Fußzeile.
-- **Ruckeln/Verschwimmen beim Verschieben (Zweig `fluessiger`, NICHT auf main, nicht live):** Striche und Zahlen auf Gerätepixel gesetzt, Zwei-Finger-Verschieben wird gesammelt und Bild für Bild abgearbeitet (`offenDx`, `bewegungTick`), Nachgleiten beim Loslassen (`schwung`, stoppt bei 0 und beim nächsten Antippen). Testfassung: https://edutoolz.de/tools/zahlenstrahl-test/ (noindex). Wenn Joshua auf dem iPad zufrieden ist: `fluessiger` in `main` mergen, pushen, `index.html` nach `/tools/zahlenstrahl/` laden, Testordner löschen. Sonst: Zweig und Testordner löschen.
-- **Ursache des Ruckelns gefunden (18.11.2026):** Stromsparmodus am iPad → Safari zeichnet nur 30 Bilder/s. Ohne Stromsparmodus 60 Bilder/s und „viel flüssiger“ (Joshua). Testfassung hat eine Messleiste (Bilder/s, Schalter, Autofahrt), die vor einer Übernahme entfernt werden muss.
-- **Sicherung:** Tag `stand-2026-11-18` = Stand, mit dem Joshua zufrieden ist (zurück mit `git checkout stand-2026-11-18 -- index.html`).
+- Striche und Zahlen sitzen auf Gerätepixeln (in `malen()`), sonst wechseln sie beim Verschieben zwischen scharf und verwaschen.
+- Zwei-Finger-Verschieben wird gesammelt (`offenDx`) und Bild für Bild abgearbeitet (`bewegungTick`); Zoomen wirkt sofort.
+- Nachgleiten beim Loslassen (`schwung`, Abklingzeit 325 ms wie iOS), stoppt bei 0 (`begrenzen()` meldet den Anschlag) und beim nächsten Antippen, Mausklick oder Mausrad.
+- Ruckeln auf dem iPad kam vom **Stromsparmodus**: Safari zeichnet dann nur 30 Bilder/s (sonst 60). Gemessen mit einer Messseite (Commit c1bb43e, wieder entfernt: Bilder/s, Schalter, Autofahrt; bei Bedarf wiederholen, z. B. fürs Whiteboard).
+- Sicherung des Stands davor: Tag `stand-2026-11-18` (zurück mit `git checkout stand-2026-11-18 -- index.html`).
+
+## Offen
+
+- Auf dem Whiteboard in der Schule testen, ob es flüssig läuft (Messseite aus c1bb43e bei Bedarf wieder hochladen).
