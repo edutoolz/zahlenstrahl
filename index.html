@@ -403,9 +403,10 @@ function pixelWert(dx) {
   return ganz >= 6 ? m * pow10(ganz - 6) : m / pow10(6 - ganz);
 }
 function begrenzen() {
-  if (minusAn || !W) return;
+  if (minusAn || !W) return false;
   const kleinste = pixelWert(W / 2 - W * RAND);
-  if (cN < kleinste) cN = kleinste;
+  if (cN < kleinste) { cN = kleinste; return true; }
+  return false;
 }
 // Wichtig: erst pixelWert ausrechnen, dann zu cN addieren. pixelWert kann cN und P neu skalieren.
 function mitteVersetzen(dx) {
@@ -414,8 +415,55 @@ function mitteVersetzen(dx) {
 }
 function verschieben(dx) {
   mitteVersetzen(-dx);
-  begrenzen();
+  const anschlag = begrenzen();
   zeichnen();
+  return anschlag;
+}
+/* Verschieben mit zwei Fingern: Die Finger melden sich nicht genau im Bildtakt des iPads (bis 120 Bilder/s).
+   Deshalb wird die Bewegung gesammelt (offenDx) und Bild für Bild gleichmäßig abgearbeitet.
+   Beim Loslassen gleitet der Strahl mit dem Schwung der Finger noch etwas weiter (wie Listen auf dem iPad). */
+let offenDx = 0;          // Fingerweg in Pixeln, der noch nicht gezeigt ist
+let schwung = 0;          // Pixel pro Millisekunde
+let tickGeplant = false, tickZeit = 0;
+const fingerVerlauf = []; // letzte Fingerbewegungen {t, dx} für den Schwung
+function bewegungTick(jetzt) {
+  tickGeplant = false;
+  const dt = tickZeit ? Math.min(jetzt - tickZeit, 50) : 16.7;
+  tickZeit = jetzt;
+  let dx = 0;
+  if (offenDx) {
+    dx = Math.abs(offenDx) < 0.5 ? offenDx : offenDx * 0.6;
+    offenDx -= dx;
+  }
+  if (schwung) {
+    dx += schwung * dt;
+    schwung *= Math.exp(-dt / 325);
+    if (Math.abs(schwung) < 0.02) schwung = 0;
+  }
+  if (dx && verschieben(dx)) schwung = 0;   // am Anfang des Strahls (bei 0) hört der Schwung auf
+  if (offenDx || schwung) tickPlanen();
+  else tickZeit = 0;
+}
+function tickPlanen() {
+  if (tickGeplant) return;
+  tickGeplant = true;
+  requestAnimationFrame(bewegungTick);
+}
+function bewegungStopp() {
+  schwung = 0;
+  if (offenDx) verschieben(offenDx);
+  offenDx = 0;
+  fingerVerlauf.length = 0;
+}
+function schwungStarten(t) {
+  const neu = fingerVerlauf.filter(v => t - v.t <= 100);
+  fingerVerlauf.length = 0;
+  if (neu.length < 2 || t - neu[neu.length - 1].t > 50) return;
+  const dauer = Math.max(16, t - neu[0].t);
+  const v = neu.reduce((a, b) => a + b.dx, 0) / dauer;
+  if (Math.abs(v) < 0.25) return;
+  schwung = klemme(v, -4, 4);
+  tickPlanen();
 }
 function zoomen(x, dL) {
   const abstand = x - W / 2;
@@ -427,6 +475,8 @@ function zoomen(x, dL) {
 }
 function startansicht(bis = 10) {
   if (!W) return;                      // Seite noch ohne Größe (z. B. unsichtbar geladen)
+  schwung = 0;
+  offenDx = 0;
   L = Math.log10(W * (1 - 2 * RAND) / bis);
   cN = 0n;
   P = 0;
@@ -719,10 +769,13 @@ function malen() {
     }
     const h = n === 0n ? 64 : klemme(12 + 16 * Math.log10(X / 24), 12, 56);
     ctx.globalAlpha = alpha;
-    ctx.lineWidth = n === 0n ? 4 : 2.5;
+    // Strich genau auf Gerätepixel: sonst wechselt er beim Verschieben zwischen scharf und verwaschen
+    const breite = Math.max(1, Math.round((n === 0n ? 4 : 2.5) * DPR));
+    const xs = (Math.round(x * DPR - breite / 2) + breite / 2) / DPR;
+    ctx.lineWidth = breite / DPR;
     ctx.beginPath();
-    ctx.moveTo(x, y - h / 2);
-    ctx.lineTo(x, y + h / 2);
+    ctx.moveTo(xs, y - h / 2);
+    ctx.lineTo(xs, y + h / 2);
     ctx.stroke();
 
     let stufe = null, a = 0;
@@ -789,7 +842,7 @@ function malen() {
   for (const z of zuZeigen) {
     ctx.globalAlpha = z.a;
     ctx.font = schrift(fs, z.fett);
-    ctx.fillText(z.text, z.x, labelY);
+    ctx.fillText(z.text, Math.round(z.x * DPR) / DPR, labelY);
   }
   ctx.globalAlpha = 1;
   linieLabelY = labelY;
@@ -1216,6 +1269,7 @@ function fingerNeu(e) {
   letzte = e.touches.length >= 2 ? fingerLage(e) : null;
 }
 canvas.addEventListener("touchstart", e => {
+  bewegungStopp();
   fingerNeu(e);
   if (e.touches.length === 1) {
     tippStart(e.touches[0].clientX, e.touches[0].clientY, true);
@@ -1226,6 +1280,7 @@ canvas.addEventListener("touchstart", e => {
   }
 }, { passive: false });
 canvas.addEventListener("touchend", e => {
+  if (letzte && e.touches.length < 2) schwungStarten(e.timeStamp);
   fingerNeu(e);
   if (e.touches.length === 0) tippEnde();
 }, { passive: false });
@@ -1243,8 +1298,12 @@ canvas.addEventListener("touchmove", e => {
   }
   if (e.touches.length < 2 || !letzte) return;
   const jetzt = fingerLage(e);
-  mitteVersetzen(letzte.x - jetzt.x);
+  const dx = jetzt.x - letzte.x;
+  offenDx += dx;
+  fingerVerlauf.push({ t: e.timeStamp, dx });
+  while (fingerVerlauf.length && e.timeStamp - fingerVerlauf[0].t > 150) fingerVerlauf.shift();
   zoomen(jetzt.x, Math.log10(jetzt.abstand / letzte.abstand));
+  tickPlanen();
   letzte = jetzt;
   bewegt();
 }, { passive: false });
@@ -1258,6 +1317,7 @@ document.addEventListener("touchmove", e => e.preventDefault(), { passive: false
 let mausX = null;
 canvas.addEventListener("pointerdown", e => {
   if (e.pointerType !== "mouse") return;
+  bewegungStopp();
   tippStart(e.clientX, e.clientY);
   if (!tipp.punkt && !laser && !stiftModus) mausX = e.clientX;
   canvas.setPointerCapture(e.pointerId);
@@ -1292,6 +1352,7 @@ canvas.addEventListener("pointercancel", () => {
 });
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
+  bewegungStopp();
   const faktor = e.deltaMode === 1 ? 16 : 1;
   if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
     verschieben(-e.deltaX * faktor);
