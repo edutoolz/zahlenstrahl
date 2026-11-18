@@ -975,7 +975,7 @@ function malen() {
   if (laser) {
     ctx.fillStyle = "#ff1414";
     ctx.beginPath();
-    ctx.arc(laser.x, laser.y, 12, 0, Math.PI * 2);
+    ctx.arc(laser.x, laser.y, 8, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.fillStyle = fg;
@@ -1009,7 +1009,10 @@ function malen() {
 
 function groesse() {
   const vorher = W;
-  const breite = window.innerWidth, hoehe = window.innerHeight;
+  // Gemessen wird, wie groß das Zeichenfeld wirklich auf dem Bildschirm steht (nicht window.innerWidth:
+  // das ist beim Start als Home-Bildschirm-App manchmal kurz falsch, dann wäre der Zahlenstrahl gestreckt)
+  const feld = canvas.getBoundingClientRect();
+  const breite = Math.round(feld.width), hoehe = Math.round(feld.height);
   if (!breite || !hoehe) return;       // Rahmen noch nicht sichtbar: warten, bis er eine Größe hat
   DPR = Math.min(window.devicePixelRatio || 1, 3);
   W = breite;
@@ -1545,8 +1548,14 @@ btnLoeschen.addEventListener("click", () => {
 hinweisZeigen();
 
 window.addEventListener("resize", groesse);
-new ResizeObserver(groesse).observe(document.documentElement);
+new ResizeObserver(groesse).observe(canvas);
 groesse();
+// Nach dem Start, beim Zurückkehren in die App und nach dem Drehen noch einmal nachmessen
+window.addEventListener("pageshow", groesse);
+window.addEventListener("orientationchange", () => setTimeout(groesse, 300));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) groesse(); });
+setTimeout(groesse, 150);
+setTimeout(groesse, 700);
 hintergrund(lesen("hintergrund") === "schwarz" ? "schwarz" : "weiss");
 minuszahlen(lesen("minus") === "an");
 </script>
