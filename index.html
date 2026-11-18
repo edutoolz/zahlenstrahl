@@ -869,7 +869,8 @@ function malen() {
           ctx.globalAlpha = 0.5;
           ctx.strokeStyle = stiftFarbe;
           ctx.fillStyle = stiftFarbe;
-          sprungMalen({ text: st, verdeckt: false }, wertX(sprungStart), xz, y, fs);
+          // Bei „Sprungweite: mit ?“ zeigt auch die Vorschau nur das ?, die Pfeilspitze zeigt die Richtung
+          sprungMalen({ text: st, verdeckt: sprungVerdeckt, offen: false }, wertX(sprungStart), xz, y, fs);
           ctx.globalAlpha = 1;
         }
       }
