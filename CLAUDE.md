@@ -28,3 +28,11 @@ Beim Hineinzoomen erscheinen Dezimalzahlen, beim Herauszoomen immer größere Za
 - GitHub: Repo `edutoolz/zahlenstrahl` (öffentlich), Branch `main`, Remote `git@github-edutoolz:edutoolz/zahlenstrahl.git`. Nach Änderungen committen und `git push`. Umgezogen von `klassestehnken-dev` am 2026-11-07.
 - Für Commits in diesem Repo ist die GitHub-noreply-Adresse eingestellt, damit keine private E-Mail-Adresse öffentlich wird.
 - Lokal testen: Vorschau `zahlenstrahl` aus `.claude/launch.json` (Port 8768).
+
+## Offen (Stand 18.11.2026)
+
+- **Auf dem iPad testen** (Joshua hatte sein iPad nicht da): Rechensprung mit Startring und Vorschau beim Halten (auch mit „?“), Laserpointer-Symbol, Fußzeile.
+- **Ruckeln/Verschwimmen beim Verschieben auf dem iPad** (Joshua: läuft flüssig, aber leichtes Ruckeln, Striche wirken beim Scrollen kurz verschwommen). Erst nach dem iPad-Test angehen, Joshua entscheidet dann. Vermutete Ursachen, noch nicht gebaut:
+  1. Striche liegen auf Bruchteil-Pixeln (`xVon()` in `malen()`), wechseln beim Verschieben zwischen scharf und verwaschen → x der Striche auf Gerätepixel runden (`Math.round(x * DPR) / DPR`, bei ungerader Linienbreite + 0,5).
+  2. Verschieben folgt direkt den Touch-Ereignissen (`touchmove` → `mitteVersetzen`), die nicht im 120-Hz-Bildtakt kommen → Bewegung pro Bild (in `malen()`/rAF) gleichmäßig verteilen.
+  3. Optional: Nachgleiten (Schwung) beim Loslassen.
